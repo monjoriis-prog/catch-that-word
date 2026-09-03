@@ -1,0 +1,2292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Catch That Word</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* ============================================================
+     COLORS AND FONTS
+     Change any hex code here and the whole game changes color.
+     ============================================================ */
+  :root {
+    --mint-bg:    #e0f2e5;
+    --card:       #fffdf7;
+    --ink:        #1a1730;
+    --ink-soft:   #5a6b5e;
+    --ink-muted:  #6b7c6f;
+    --gold:       #ffd158;
+    --coral:      #ff6b6b;
+    --leaf:       #4f9e4a;
+    --font: 'Fredoka', 'Trebuchet MS', Verdana, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  html, body { height: 100%; margin: 0; }
+
+  body {
+    background: var(--mint-bg);
+    color: var(--ink);
+    font-family: var(--font);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 16px;
+    overflow: hidden;
+  }
+
+  /* The whole game lives inside this box. */
+  #game {
+    position: relative;
+    width: min(760px, 100%);
+    height: min(680px, 100%);
+    background: var(--mint-bg);
+    border-radius: 22px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 20px 60px rgba(0,0,0,.12);
+    border: 2px solid var(--ink);
+  }
+
+  /* ============================================================
+     THE DEFINITION PANEL (top of the screen)
+     ============================================================ */
+  #clue {
+    position: relative;
+    padding: 26px 32px 18px;
+    text-align: center;
+    flex-shrink: 0;
+    z-index: 2;
+  }
+
+  #home-btn {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    font-size: 22px;
+    background: var(--card);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    width: 36px;
+    height: 36px;
+    color: var(--ink);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+  }
+
+  #home-btn:hover { background: var(--gold); }
+
+  #clue-label {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin-bottom: 10px;
+  }
+
+  #clue-text {
+    font-size: clamp(19px, 3.2vw, 29px);
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--ink);
+    max-width: 30ch;
+    margin: 0 auto;
+    min-height: 2.7em;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ============================================================
+     THE PLAY FIELD (where words fall)
+     ============================================================ */
+  #field { position: relative; flex: 1; overflow: hidden; }
+
+  .word {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 9px 20px;
+    background: var(--card);
+    color: var(--ink);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    font-size: 21px;
+    font-weight: 500;
+    font-family: var(--font);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    will-change: transform;
+  }
+
+  /* Long words get smaller type so they still fit on the screen. */
+  .word.long { font-size: 17px; padding: 8px 16px; }
+
+  .word:hover,
+  .word:focus-visible {
+    background: var(--gold);
+    outline: none;
+  }
+
+  .word.caught {
+    background: var(--leaf);
+    border-color: var(--ink);
+    color: #fff;
+    animation: pop .28s ease-out forwards;
+    pointer-events: none;
+  }
+
+  .word.wrong {
+    background: var(--coral);
+    border-color: var(--ink);
+    color: #fff;
+    animation: shake .3s ease-out forwards;
+    pointer-events: none;
+  }
+
+  @keyframes pop {
+    0%   { scale: 1;   opacity: 1; }
+    45%  { scale: 1.3; opacity: 1; }
+    100% { scale: .7;  opacity: 0; }
+  }
+
+  @keyframes shake {
+    0%, 100% { opacity: 1; }
+    25%  { translate: -7px 0; }
+    75%  { translate:  7px 0; }
+    100% { opacity: 0; }
+  }
+
+  /* Banner that appears when you move up a level. */
+  #levelup {
+    position: absolute;
+    top: 44%;
+    left: 0;
+    right: 0;
+    text-align: center;
+    font-size: clamp(22px, 4vw, 30px);
+    font-weight: 600;
+    color: var(--leaf);
+    pointer-events: none;
+    opacity: 0;
+    z-index: 4;
+    padding: 0 20px;
+  }
+
+  #levelup.show { animation: banner 1.4s ease-out forwards; }
+
+  @keyframes banner {
+    0%   { opacity: 0; scale: .85; }
+    20%  { opacity: 1; scale: 1; }
+    75%  { opacity: 1; }
+    100% { opacity: 0; }
+  }
+
+  /* ============================================================
+     SCOREBOARD (bottom bar)
+     ============================================================ */
+  #bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 26px 18px;
+    flex-shrink: 0;
+    border-top: 2px solid var(--ink);
+    z-index: 2;
+  }
+
+  #score { font-size: 19px; font-weight: 600; }
+  #score span { color: var(--leaf); }
+
+  #level-name {
+    font-size: 15px;
+    color: var(--ink-soft);
+    font-weight: 500;
+  }
+
+  #lives { display: flex; gap: 8px; }
+
+  .heart {
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    background: var(--coral);
+    border: 2px solid var(--ink);
+  }
+
+  .heart.gone { background: var(--card); }
+
+  /* ============================================================
+     START AND GAME OVER SCREENS
+     ============================================================ */
+  .screen {
+    position: absolute;
+    inset: 0;
+    background: var(--mint-bg);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 28px;
+    overflow-y: auto;
+    z-index: 5;
+  }
+
+  .screen.hidden { display: none; }
+
+  .screen h1 {
+    font-size: clamp(32px, 6vw, 50px);
+    font-weight: 600;
+    margin: 0 0 10px;
+    color: var(--ink);
+  }
+
+  .screen p {
+    font-size: 16px;
+    color: var(--ink-soft);
+    max-width: 34ch;
+    line-height: 1.5;
+    margin: 0 0 22px;
+  }
+
+  #start-screen h1 {
+    font-family: 'Boogaloo', cursive;
+    font-size: clamp(36px, 8vw, 56px);
+    color: #ffd158;
+    -webkit-text-stroke: 3px #1a1730;
+    paint-order: stroke fill;
+    white-space: nowrap;
+  }
+
+  /* Start screen layout with pet columns */
+  #start-screen {
+    flex-direction: row;
+    padding: 16px 8px;
+    gap: 0;
+  }
+
+  .start-pets {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 4px;
+    flex-shrink: 0;
+    width: 60px;
+    overflow-y: auto;
+    overflow-x: visible;
+  }
+
+  .start-pets .pet-svg { flex-shrink: 0; }
+
+  .start-center {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    overflow-y: auto;
+    min-width: 0;
+    padding: 0 4px;
+  }
+
+  /* The level buttons on the start screen. */
+  #level-picker {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(340px, 100%);
+  }
+
+  button.level {
+    font-family: var(--font);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--card);
+    border: 2px solid var(--ink);
+    border-radius: 15px;
+    padding: 12px 20px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    text-align: left;
+  }
+
+  button.level:hover { background: var(--gold); }
+  button.level:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }
+
+  button.level small {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--ink-muted);
+    text-align: right;
+  }
+
+  button.play {
+    font-family: var(--font);
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--gold);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 13px 38px;
+    cursor: pointer;
+  }
+
+  button.play:hover { background: #ffe294; }
+  button.play:focus-visible { outline: 3px solid var(--leaf); outline-offset: 3px; }
+
+  #learned {
+    color: var(--ink);
+    font-size: 15px;
+    line-height: 1.7;
+    max-width: 38ch;
+    margin: 0 0 22px;
+  }
+
+  #over-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: min(300px, 100%);
+  }
+
+  #over-buttons .play {
+    width: 100%;
+    text-align: center;
+  }
+
+  #use-life-button.no-lives {
+    opacity: .4;
+    pointer-events: none;
+  }
+
+  /* ============================================================
+     REVIEW PROMPT AND REVIEW SCREEN
+     ============================================================ */
+  #review-prompt .choices {
+    display: flex;
+    gap: 14px;
+    margin-top: 4px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  #review-screen {
+    justify-content: flex-start;
+    padding-top: 0;
+  }
+
+  #review-top {
+    width: 100%;
+    display: flex;
+    justify-content: flex-end;
+    padding: 16px 0 10px;
+    flex-shrink: 0;
+  }
+
+  #review-top .play {
+    font-size: 15px;
+    padding: 8px 22px;
+  }
+
+  #review-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    min-height: 0;
+  }
+
+  #review-card {
+    background: var(--card);
+    border: 2px solid var(--ink);
+    border-radius: 18px;
+    padding: 38px 32px;
+    width: min(380px, 100%);
+    text-align: center;
+    user-select: none;
+    touch-action: pan-y;
+  }
+
+  #review-word {
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 14px;
+  }
+
+  #review-meaning {
+    font-size: clamp(16px, 2.8vw, 21px);
+    color: var(--ink-soft);
+    line-height: 1.45;
+  }
+
+  #review-nav {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    margin-top: 24px;
+    flex-shrink: 0;
+  }
+
+  #review-nav button {
+    font-family: var(--font);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--card);
+    border: 2px solid var(--ink);
+    border-radius: 50%;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #review-nav button:hover { background: var(--gold); }
+
+  #review-counter {
+    font-size: 15px;
+    color: var(--ink-soft);
+    min-width: 5ch;
+    text-align: center;
+  }
+
+  #review-hint {
+    font-size: 13px;
+    color: var(--ink-muted);
+    margin-top: 16px;
+    flex-shrink: 0;
+  }
+
+  /* ============================================================
+     PAUSE FEEDBACK (shown when you lose a life)
+     ============================================================ */
+  #pause-feedback {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: rgba(224, 242, 229, .92);
+    z-index: 4;
+    padding: 28px;
+    pointer-events: none;
+  }
+
+  #pause-feedback.hidden { display: none; }
+
+  #pause-feedback .pw {
+    font-size: clamp(26px, 5vw, 40px);
+    font-weight: 600;
+    color: var(--ink);
+    margin-bottom: 8px;
+  }
+
+  #pause-feedback .pm {
+    font-size: clamp(16px, 2.5vw, 22px);
+    color: var(--ink-soft);
+    max-width: 28ch;
+    line-height: 1.4;
+  }
+
+  #speak-btn, #review-speak-btn {
+    margin-top: 14px;
+    font-family: var(--font);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--ink);
+    background: var(--card);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 8px 18px;
+    cursor: pointer;
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  #speak-btn:hover, #review-speak-btn:hover { background: var(--gold); }
+
+  /* ============================================================
+     CONFETTI (correct catch celebration)
+     ============================================================ */
+  .confetti {
+    position: absolute;
+    width: 8px;
+    height: 14px;
+    top: -16px;
+    border-radius: 2px;
+    pointer-events: none;
+    animation: confetti-fall 1s ease-in forwards;
+  }
+
+  @keyframes confetti-fall {
+    0%   { opacity: 1; transform: translateY(0) rotate(0deg); }
+    100% { opacity: 0; transform: translateY(var(--fall-dist)) rotate(var(--spin)); }
+  }
+
+  /* ============================================================
+     PET COLLECTION
+     ============================================================ */
+  #pets-btn {
+    font-family: var(--font);
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--ink);
+    background: var(--gold);
+    border: 2px solid var(--ink);
+    border-radius: 999px;
+    padding: 10px 24px;
+    cursor: pointer;
+    margin-top: 18px;
+  }
+
+  #pets-btn:hover { background: #ffe294; }
+
+  #pets-screen {
+    justify-content: flex-start;
+    padding-top: 0;
+  }
+
+  #pets-top {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0 6px;
+    flex-shrink: 0;
+  }
+
+  #pets-top .play {
+    font-size: 15px;
+    padding: 8px 22px;
+  }
+
+  #pets-count {
+    font-size: 15px;
+    color: var(--ink-soft);
+  }
+
+  #pets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+    width: 100%;
+    max-width: 520px;
+    overflow-y: auto;
+    padding: 10px 0 20px;
+    flex: 1;
+    min-height: 0;
+  }
+
+  .pet-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 14px 6px 10px;
+    background: var(--card);
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+  }
+
+  .pet-card.locked {
+    opacity: .35;
+  }
+
+  .pet-emoji {
+    font-size: 38px;
+    line-height: 1;
+  }
+
+  .pet-card.locked .pet-emoji {
+    filter: grayscale(1);
+  }
+
+  .pet-name {
+    font-size: 12px;
+    color: var(--ink);
+    font-weight: 500;
+  }
+
+  .pet-card.locked .pet-name {
+    color: var(--ink-muted);
+  }
+
+  /* pet-emoji container no longer needs animation — SVG .bob handles it */
+
+  /* Pet picker (choose your pet during gameplay) */
+  #pet-picker {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: rgba(224, 242, 229, .95);
+    z-index: 6;
+    padding: 20px;
+  }
+
+  #pet-picker.hidden { display: none; }
+
+  #pet-picker-label {
+    font-size: clamp(18px, 3vw, 24px);
+    font-weight: 600;
+    color: var(--leaf);
+    margin-bottom: 16px;
+  }
+
+  #pet-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 10px;
+    width: 100%;
+    max-width: 480px;
+    max-height: 60vh;
+    overflow-y: auto;
+    padding: 4px;
+  }
+
+  .pick-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 12px 6px 8px;
+    background: var(--card);
+    border: 2px solid var(--ink);
+    border-radius: 14px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+
+  .pick-card:hover {
+    background: var(--gold);
+  }
+
+  .pick-card .pet-emoji { font-size: 34px; line-height: 1; }
+  .pick-card .pet-name  { font-size: 12px; color: var(--ink); font-weight: 500; }
+
+  @keyframes pet-picked {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.35); }
+    100% { transform: scale(1); opacity: 0; }
+  }
+
+
+
+  /* ============================================================
+     SVG PET RENDERING
+     ============================================================ */
+  .pet-svg { display: block; overflow: visible; }
+  .pet-svg--sm  { width: 50px;  height: 50px; }
+  .pet-svg--md  { width: 48px;  height: 48px; }
+  .pet-svg--lg  { width: 100px; height: 100px; }
+
+  /* ============================================================
+     SVG PET ANIMATIONS
+     ============================================================ */
+  .bob,.blink,.wl,.wr,.fl,.fr,.el,.er{transform-box:fill-box}
+  .bob{animation:bob 2.6s ease-in-out infinite}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-2.5px)}}
+  .blink{animation:blink 2.2s infinite;transform-origin:center}
+  @keyframes blink{0%,84%,100%{transform:scaleY(1)}92%{transform:scaleY(.1)}}
+  .wl{transform-origin:right center;animation:wl 1.8s ease-in-out infinite}
+  .wr{transform-origin:left center;animation:wr 1.8s ease-in-out infinite}
+  @keyframes wl{0%,100%{transform:rotate(0)}50%{transform:rotate(-16deg)}}
+  @keyframes wr{0%,100%{transform:rotate(0)}50%{transform:rotate(16deg)}}
+  .fl{transform-origin:right bottom;animation:wl .22s ease-in-out infinite}
+  .fr{transform-origin:left bottom;animation:wr .22s ease-in-out infinite}
+  .el{transform-origin:center bottom;animation:el 3.4s ease-in-out infinite}
+  .er{transform-origin:center bottom;animation:er 3.4s ease-in-out infinite .3s}
+  @keyframes el{0%,80%,100%{transform:rotate(0)}88%{transform:rotate(-13deg)}}
+  @keyframes er{0%,80%,100%{transform:rotate(0)}88%{transform:rotate(13deg)}}
+
+  @media (prefers-reduced-motion: reduce) {
+    .confetti { animation: none; display: none; }
+    .bob,.blink,.wl,.wr,.fl,.fr,.el,.er{animation:none}
+  }
+</style>
+</head>
+<body>
+
+<div id="game">
+  <div id="clue">
+    <button id="home-btn" aria-label="Home">&#8962;</button>
+    <div id="clue-label">Catch the word that means</div>
+    <div id="clue-text"></div>
+  </div>
+
+  <div id="field"></div>
+  <div id="levelup"></div>
+
+  <div class="hidden" id="pet-picker">
+    <div id="pet-picker-label">You earned a pet! Pick one:</div>
+    <div id="pet-picker-grid"></div>
+  </div>
+
+  <div class="hidden" id="pause-feedback">
+    <div class="pw" id="pause-word"></div>
+    <div class="pm" id="pause-meaning"></div>
+    <button id="speak-btn" aria-label="Hear the word">&#128264; Speak to me</button>
+  </div>
+
+  <div id="bar">
+    <div id="score">Score <span id="score-number">0</span></div>
+    <div id="level-name"></div>
+    <div id="lives"></div>
+  </div>
+
+  <div class="screen" id="start-screen">
+    <div class="start-pets" id="start-pets-left"></div>
+    <div class="start-center">
+      <h1>Catch That Word</h1>
+      <p>A meaning appears at the top. Catch the falling word that matches it. Pick where you want to start.</p>
+      <div id="level-picker"></div>
+      <button id="pets-btn">My Pets (0)</button>
+    </div>
+    <div class="start-pets" id="start-pets-right"></div>
+  </div>
+
+  <div class="screen hidden" id="pets-screen">
+    <div id="pets-top">
+      <div id="pets-count"></div>
+      <button class="play" id="pets-back">Back</button>
+    </div>
+    <h1 style="margin-top:0; font-size:clamp(24px,4vw,34px);">My Pets</h1>
+    <div id="pets-grid"></div>
+  </div>
+
+  <div class="screen hidden" id="review-prompt">
+    <h1>Review first?</h1>
+    <p>Look over the words and meanings before you play?</p>
+    <div class="choices">
+      <button class="play" id="review-yes">Review words</button>
+      <button class="play" id="review-no">Play now</button>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="review-screen">
+    <div id="review-top">
+      <button class="play" id="review-home" style="background:var(--card);border:2px solid var(--ink);">Home</button>
+      <button class="play" id="review-go">Go to game</button>
+    </div>
+    <div id="review-body">
+      <div id="review-card">
+        <div id="review-word"></div>
+        <div id="review-meaning"></div>
+        <button id="review-speak-btn" aria-label="Hear the word">&#128264; Speak to me</button>
+      </div>
+      <div id="review-nav">
+        <button id="review-prev">&#8592;</button>
+        <div id="review-counter"></div>
+        <button id="review-next">&#8594;</button>
+      </div>
+      <div id="review-hint">Swipe or use arrows</div>
+    </div>
+  </div>
+
+  <div class="screen hidden" id="over-screen">
+    <h1>Out of lives</h1>
+    <p id="final-score"></p>
+    <div id="learned"></div>
+    <div id="over-buttons">
+      <button class="play" id="use-life-button">Use extra life (0)</button>
+      <button class="play" id="over-review-button" style="background:var(--leaf);color:#fff;">Review words</button>
+      <button class="play" id="again-button" style="background:var(--card);border:2px solid var(--ink);">Home</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ==============================================================
+   1. THE LEVELS
+   Each level holds its own word list and its own settings.
+   To add a word, copy a line and change it. To add a whole new
+   level, copy a block and change it.
+   ============================================================== */
+const LEVELS = [
+  {
+    name: "Easy",
+    blurb: "Everyday words",
+    fallSpeed: 65,          // pixels per second
+    spawnEvery: 1050,       // milliseconds between falling words
+    targetChance: 0.45,     // how often the right word falls
+    points: 10,             // points per correct catch
+    catchesToAdvance: 100,
+    words: [
+      { word: "brisk",    meaning: "quick and full of energy" },
+      { word: "timid",    meaning: "shy and easily frightened" },
+      { word: "vast",     meaning: "extremely large" },
+      { word: "weary",    meaning: "very tired" },
+      { word: "fragile",  meaning: "easily broken" },
+      { word: "ancient",  meaning: "very old, from long ago" },
+      { word: "clumsy",   meaning: "awkward and likely to drop things" },
+      { word: "gloomy",   meaning: "dark, or feeling sad" },
+      { word: "eager",    meaning: "excited and wanting to do something" },
+      { word: "mend",     meaning: "to fix something that is broken" },
+      { word: "bold",     meaning: "brave and not afraid" },
+      { word: "calm",     meaning: "peaceful and not worried" },
+      { word: "damp",     meaning: "slightly wet" },
+      { word: "faint",    meaning: "weak and hard to see or hear" },
+      { word: "gentle",   meaning: "soft and careful, not rough" },
+      { word: "harsh",    meaning: "rough and unpleasant" },
+      { word: "hollow",   meaning: "empty on the inside" },
+      { word: "keen",     meaning: "very interested and eager" },
+      { word: "lively",   meaning: "full of energy and fun" },
+      { word: "narrow",   meaning: "not wide, thin from side to side" },
+      { word: "plead",    meaning: "to beg someone for something" },
+      { word: "rapid",    meaning: "happening very fast" },
+      { word: "scarce",   meaning: "hard to find, not enough of" },
+      { word: "tender",   meaning: "soft and easy to chew, or kind" },
+      { word: "vacant",   meaning: "empty and not being used" },
+      { word: "wander",   meaning: "to walk without a clear direction" },
+      { word: "blaze",    meaning: "a large, bright fire" },
+      { word: "cozy",     meaning: "warm and comfortable" },
+      { word: "drift",    meaning: "to move slowly without trying" },
+      { word: "fierce",   meaning: "strong and aggressive" },
+      { word: "gleam",    meaning: "to shine with a soft light" },
+      { word: "hasty",    meaning: "done too quickly without thinking" },
+      { word: "jolly",    meaning: "happy and cheerful" },
+      { word: "loyal",    meaning: "always faithful to someone" },
+      { word: "nimble",   meaning: "quick and light in movement" },
+      { word: "plunge",   meaning: "to jump or dive into something" },
+      { word: "roam",     meaning: "to travel around without a plan" },
+      { word: "sturdy",   meaning: "strong and not easily broken" },
+      { word: "thrive",   meaning: "to grow strong and healthy" },
+      { word: "witty",    meaning: "clever and funny with words" },
+      { word: "brief",    meaning: "lasting only a short time" },
+      { word: "chunk",    meaning: "a thick, solid piece" },
+      { word: "crave",    meaning: "to want something very badly" },
+      { word: "crisp",    meaning: "firm, dry, and fresh" },
+      { word: "cruel",    meaning: "willing to cause pain to others" },
+      { word: "dense",    meaning: "packed tightly together" },
+      { word: "dull",     meaning: "not interesting or not sharp" },
+      { word: "dusty",    meaning: "covered with tiny dry particles" },
+      { word: "fancy",    meaning: "decorated or expensive looking" },
+      { word: "fleet",    meaning: "moving very quickly" },
+      { word: "float",    meaning: "to rest on top of water or air" },
+      { word: "frosty",   meaning: "covered in ice crystals, very cold" },
+      { word: "grumpy",   meaning: "bad tempered and easily annoyed" },
+      { word: "halt",     meaning: "to stop moving completely" },
+      { word: "heap",     meaning: "a messy pile of things" },
+      { word: "hoist",    meaning: "to lift something heavy up" },
+      { word: "humid",    meaning: "warm and full of moisture in the air" },
+      { word: "jolt",     meaning: "a sudden sharp movement" },
+      { word: "knack",    meaning: "a natural talent for doing something" },
+      { word: "leap",     meaning: "to jump high or far" },
+      { word: "meek",     meaning: "quiet and willing to obey" },
+      { word: "moist",    meaning: "slightly wet in a nice way" },
+      { word: "nudge",    meaning: "a gentle push to get attention" },
+      { word: "perch",    meaning: "to sit on the edge of something" },
+      { word: "plump",    meaning: "round and full in shape" },
+      { word: "pounce",   meaning: "to jump suddenly to catch something" },
+      { word: "praise",   meaning: "to say good things about someone" },
+      { word: "quaint",   meaning: "charmingly old fashioned" },
+      { word: "ripe",     meaning: "fully grown and ready to eat" },
+      { word: "rugged",   meaning: "rough and uneven" },
+      { word: "seldom",   meaning: "not very often" },
+      { word: "shallow",  meaning: "not deep" },
+      { word: "shiver",   meaning: "to shake from cold or fear" },
+      { word: "shrink",   meaning: "to get smaller" },
+      { word: "slender",  meaning: "thin and graceful" },
+      { word: "snug",     meaning: "warm, comfortable, and tight" },
+      { word: "soak",     meaning: "to make completely wet" },
+      { word: "soar",     meaning: "to fly high in the sky" },
+      { word: "spill",    meaning: "to accidentally pour out a liquid" },
+      { word: "stale",    meaning: "no longer fresh" },
+      { word: "steep",    meaning: "rising or falling sharply" },
+      { word: "stiff",    meaning: "hard to bend or move" },
+      { word: "stir",     meaning: "to mix by moving in circles" },
+      { word: "stray",    meaning: "to move away from where you should be" },
+      { word: "swift",    meaning: "happening very quickly" },
+      { word: "tame",     meaning: "not wild, gentle and obedient" },
+      { word: "tidy",     meaning: "neat and in order" },
+      { word: "topple",   meaning: "to fall over or knock down" },
+      { word: "tremble",  meaning: "to shake with small movements" },
+      { word: "trudge",   meaning: "to walk slowly with heavy steps" },
+      { word: "tug",      meaning: "to pull something hard" },
+      { word: "vague",    meaning: "not clear or certain" },
+      { word: "vast",     meaning: "extremely large" },
+      { word: "whirl",    meaning: "to spin around very fast" },
+      { word: "wilt",     meaning: "to droop because of heat or no water" },
+      { word: "yank",     meaning: "to pull with a sharp tug" },
+      { word: "zeal",     meaning: "great energy and enthusiasm" },
+      { word: "zones",    meaning: "areas marked off for a purpose" },
+      { word: "amuse",    meaning: "to make someone smile or laugh" },
+      { word: "clutch",   meaning: "to hold onto something tightly" }
+    ]
+  },
+  {
+    name: "Tricky",
+    blurb: "Words you meet in books",
+    fallSpeed: 85,
+    spawnEvery: 900,
+    targetChance: 0.35,
+    points: 20,
+    catchesToAdvance: 100,
+    words: [
+      { word: "brittle",    meaning: "hard, but easy to snap" },
+      { word: "drowsy",     meaning: "sleepy and slow" },
+      { word: "vivid",      meaning: "bright and clear in your mind" },
+      { word: "reluctant",  meaning: "not wanting to do something" },
+      { word: "ample",      meaning: "more than enough" },
+      { word: "feeble",     meaning: "weak and without strength" },
+      { word: "frantic",    meaning: "wild with worry or hurry" },
+      { word: "sturdy",     meaning: "strong and not easily knocked over" },
+      { word: "peculiar",   meaning: "strange or unusual" },
+      { word: "linger",     meaning: "to stay longer than expected" },
+      { word: "absurd",     meaning: "completely silly or unreasonable" },
+      { word: "blunder",    meaning: "a careless, stupid mistake" },
+      { word: "cautious",   meaning: "being very careful to avoid danger" },
+      { word: "cunning",    meaning: "clever at tricking people" },
+      { word: "dreadful",   meaning: "extremely bad or unpleasant" },
+      { word: "exile",      meaning: "to be forced to leave your home" },
+      { word: "futile",     meaning: "having no chance of success" },
+      { word: "glimpse",    meaning: "a very quick look at something" },
+      { word: "grim",       meaning: "serious, gloomy, or worrying" },
+      { word: "haste",      meaning: "speed or urgency in doing things" },
+      { word: "juvenile",   meaning: "relating to young people" },
+      { word: "loathe",     meaning: "to hate something strongly" },
+      { word: "meager",     meaning: "too small or too little" },
+      { word: "modest",     meaning: "not boastful about achievements" },
+      { word: "notable",    meaning: "important and worth paying attention to" },
+      { word: "obscure",    meaning: "not well known or hard to understand" },
+      { word: "piercing",   meaning: "very sharp or loud" },
+      { word: "quarrel",    meaning: "an angry argument" },
+      { word: "reckless",   meaning: "doing things without caring about danger" },
+      { word: "salvage",    meaning: "to save something from being lost" },
+      { word: "scorch",     meaning: "to burn the surface of something" },
+      { word: "serene",     meaning: "calm and peaceful" },
+      { word: "skeptic",    meaning: "a person who doubts things easily" },
+      { word: "smother",    meaning: "to cover thickly or suffocate" },
+      { word: "stagger",    meaning: "to walk unsteadily, almost falling" },
+      { word: "surplus",    meaning: "more than what is needed" },
+      { word: "tranquil",   meaning: "quiet and calm" },
+      { word: "triumph",    meaning: "a great victory or success" },
+      { word: "vengeance",  meaning: "punishment given in return for harm" },
+      { word: "wither",     meaning: "to dry up and shrink" },
+      { word: "abound",     meaning: "to exist in large numbers" },
+      { word: "ailment",    meaning: "a minor illness" },
+      { word: "barren",     meaning: "empty land where nothing grows" },
+      { word: "beckon",     meaning: "to signal someone to come closer" },
+      { word: "brood",      meaning: "to worry about something for a long time" },
+      { word: "cascade",    meaning: "a waterfall or something falling like one" },
+      { word: "clamber",    meaning: "to climb with hands and feet awkwardly" },
+      { word: "coerce",     meaning: "to force someone by pressure or threats" },
+      { word: "condone",    meaning: "to accept behavior you think is wrong" },
+      { word: "corrode",    meaning: "to slowly destroy by chemical action" },
+      { word: "dawdle",     meaning: "to waste time by being slow" },
+      { word: "debris",     meaning: "scattered pieces of something broken" },
+      { word: "defect",     meaning: "a fault or imperfection" },
+      { word: "devour",     meaning: "to eat something quickly and hungrily" },
+      { word: "discard",    meaning: "to throw something away" },
+      { word: "dwindle",    meaning: "to slowly become less or smaller" },
+      { word: "elude",      meaning: "to escape or avoid skillfully" },
+      { word: "endorse",    meaning: "to give approval or support" },
+      { word: "envision",   meaning: "to picture something in your mind" },
+      { word: "erode",      meaning: "to slowly wear away" },
+      { word: "falter",     meaning: "to hesitate or lose strength" },
+      { word: "fathom",     meaning: "to understand something difficult" },
+      { word: "feud",       meaning: "a long bitter fight between groups" },
+      { word: "flourish",   meaning: "to grow and do well" },
+      { word: "forlorn",    meaning: "sad and lonely" },
+      { word: "gorge",      meaning: "to eat too much greedily" },
+      { word: "grueling",   meaning: "extremely tiring and difficult" },
+      { word: "havoc",      meaning: "widespread damage and chaos" },
+      { word: "hinder",     meaning: "to get in the way of progress" },
+      { word: "hustle",     meaning: "to move or act quickly and busily" },
+      { word: "irate",      meaning: "extremely angry" },
+      { word: "jostle",     meaning: "to push and bump in a crowd" },
+      { word: "kindle",     meaning: "to start a fire or spark interest" },
+      { word: "lavish",     meaning: "giving or spending generously" },
+      { word: "lurk",       meaning: "to wait in hiding" },
+      { word: "maim",       meaning: "to injure someone badly" },
+      { word: "mangle",     meaning: "to damage something severely" },
+      { word: "menace",     meaning: "a person or thing that is a threat" },
+      { word: "mimic",      meaning: "to copy the way someone acts or speaks" },
+      { word: "muster",     meaning: "to gather up courage or strength" },
+      { word: "nourish",    meaning: "to give food needed for health" },
+      { word: "oust",       meaning: "to force someone out of a position" },
+      { word: "pamper",     meaning: "to treat someone with too much care" },
+      { word: "peril",      meaning: "serious danger" },
+      { word: "plight",     meaning: "a difficult or sad situation" },
+      { word: "prevail",    meaning: "to win or be widespread" },
+      { word: "quench",     meaning: "to satisfy thirst or put out fire" },
+      { word: "ravage",     meaning: "to cause great damage" },
+      { word: "recoil",     meaning: "to pull back in fear or disgust" },
+      { word: "repel",      meaning: "to push away or disgust" },
+      { word: "resent",     meaning: "to feel bitter about something unfair" },
+      { word: "scurry",     meaning: "to move quickly with short steps" },
+      { word: "seize",      meaning: "to grab suddenly and forcefully" },
+      { word: "sever",      meaning: "to cut through completely" },
+      { word: "squander",   meaning: "to waste money or time foolishly" },
+      { word: "stifle",     meaning: "to hold back or prevent" },
+      { word: "subdue",     meaning: "to bring under control" },
+      { word: "swarm",      meaning: "a large group moving together" },
+      { word: "tamper",     meaning: "to interfere with something wrongly" },
+      { word: "thwart",     meaning: "to prevent someone from succeeding" }
+    ]
+  },
+  {
+    name: "Tough",
+    blurb: "Middle school words",
+    fallSpeed: 105,
+    spawnEvery: 820,
+    targetChance: 0.32,
+    points: 30,
+    catchesToAdvance: 100,
+    words: [
+      { word: "meticulous",  meaning: "careful about every small detail" },
+      { word: "resilient",   meaning: "able to recover quickly" },
+      { word: "obstinate",   meaning: "refusing to change your mind" },
+      { word: "candid",      meaning: "honest, even when it is awkward" },
+      { word: "lavish",      meaning: "generous in a rich, showy way" },
+      { word: "wary",        meaning: "careful because something might go wrong" },
+      { word: "fleeting",    meaning: "lasting only a very short time" },
+      { word: "diligent",    meaning: "working hard and steadily" },
+      { word: "somber",      meaning: "serious and gloomy in mood" },
+      { word: "placate",     meaning: "to calm someone who is upset" },
+      { word: "adamant",     meaning: "refusing to be persuaded" },
+      { word: "aloof",       meaning: "distant and not friendly" },
+      { word: "benevolent",  meaning: "kind and generous" },
+      { word: "blatant",     meaning: "done openly without shame" },
+      { word: "boisterous",  meaning: "noisy and full of energy" },
+      { word: "chronic",     meaning: "lasting a very long time" },
+      { word: "compel",      meaning: "to force someone to do something" },
+      { word: "contempt",    meaning: "a feeling that someone is worthless" },
+      { word: "cryptic",     meaning: "mysterious and hard to understand" },
+      { word: "daunting",    meaning: "making you feel nervous about trying" },
+      { word: "defiant",     meaning: "boldly refusing to obey" },
+      { word: "demeanor",    meaning: "the way a person behaves outwardly" },
+      { word: "deplete",     meaning: "to use up all of something" },
+      { word: "devout",      meaning: "deeply devoted to a belief" },
+      { word: "dismay",      meaning: "a feeling of shock and disappointment" },
+      { word: "eloquent",    meaning: "speaking in a powerful, moving way" },
+      { word: "endure",      meaning: "to suffer through something difficult" },
+      { word: "extravagant", meaning: "spending far more than necessary" },
+      { word: "fathom",      meaning: "to understand something deeply" },
+      { word: "gratitude",   meaning: "the feeling of being thankful" },
+      { word: "immense",     meaning: "extremely large or great" },
+      { word: "intricate",   meaning: "very detailed and complicated" },
+      { word: "mundane",     meaning: "dull and ordinary" },
+      { word: "ominous",     meaning: "giving a sign that trouble is coming" },
+      { word: "ponder",      meaning: "to think about something carefully" },
+      { word: "prevalent",   meaning: "widespread and common" },
+      { word: "profound",    meaning: "very deep or meaningful" },
+      { word: "prudent",     meaning: "showing good and careful judgment" },
+      { word: "squalid",     meaning: "extremely dirty and unpleasant" },
+      { word: "vigilant",    meaning: "keeping careful watch for danger" },
+      { word: "abhor",       meaning: "to feel strong hatred for something" },
+      { word: "adept",       meaning: "highly skilled at something" },
+      { word: "affluent",    meaning: "having a lot of money" },
+      { word: "ambiguous",   meaning: "having more than one meaning" },
+      { word: "appease",     meaning: "to make someone calm by giving in" },
+      { word: "arduous",     meaning: "needing a lot of effort and energy" },
+      { word: "aspire",      meaning: "to hope to achieve something great" },
+      { word: "austere",     meaning: "plain and simple with no comfort" },
+      { word: "avid",        meaning: "very eager and enthusiastic" },
+      { word: "baffle",      meaning: "to confuse someone completely" },
+      { word: "brazen",      meaning: "bold in a rude or shocking way" },
+      { word: "callous",     meaning: "uncaring about other people's feelings" },
+      { word: "clamor",      meaning: "a loud continuous noise or demand" },
+      { word: "colossal",    meaning: "extremely large" },
+      { word: "concede",     meaning: "to admit something is true after resisting" },
+      { word: "confiscate",  meaning: "to take something away as punishment" },
+      { word: "conspire",    meaning: "to secretly plan something wrong" },
+      { word: "contrite",    meaning: "feeling sorry for something you did" },
+      { word: "denounce",    meaning: "to publicly say something is wrong" },
+      { word: "desolate",    meaning: "empty, bare, and very lonely" },
+      { word: "dire",        meaning: "extremely serious or urgent" },
+      { word: "discern",     meaning: "to see or understand something not obvious" },
+      { word: "docile",      meaning: "easy to control and not aggressive" },
+      { word: "dread",       meaning: "to fear something that has not yet happened" },
+      { word: "elicit",      meaning: "to draw out a response from someone" },
+      { word: "eminent",     meaning: "famous and respected" },
+      { word: "engross",     meaning: "to completely capture your attention" },
+      { word: "erratic",     meaning: "unpredictable and uneven" },
+      { word: "exasperate",  meaning: "to annoy someone a great deal" },
+      { word: "exemplify",   meaning: "to serve as a perfect example of" },
+      { word: "fervid",      meaning: "intensely enthusiastic or passionate" },
+      { word: "flagrant",    meaning: "obviously wrong and unacceptable" },
+      { word: "frugal",      meaning: "careful not to waste money" },
+      { word: "futile",      meaning: "pointless and having no result" },
+      { word: "hamper",      meaning: "to slow down or get in the way" },
+      { word: "haughty",     meaning: "acting as if you are better than others" },
+      { word: "impede",      meaning: "to block or slow something down" },
+      { word: "incessant",   meaning: "never stopping" },
+      { word: "indignant",   meaning: "angry about something unfair" },
+      { word: "innate",      meaning: "something you are born with" },
+      { word: "jeopardize",  meaning: "to put something at risk" },
+      { word: "lament",      meaning: "to express great sadness about something" },
+      { word: "lethal",      meaning: "able to cause death" },
+      { word: "lucid",       meaning: "clear and easy to understand" },
+      { word: "malice",      meaning: "the wish to cause harm to others" },
+      { word: "meander",     meaning: "to follow a winding path" },
+      { word: "novice",      meaning: "a person who is new to something" },
+      { word: "obscure",     meaning: "difficult to find or understand" },
+      { word: "opaque",      meaning: "impossible to see through" },
+      { word: "parched",     meaning: "extremely dry and thirsty" },
+      { word: "plausible",   meaning: "seeming reasonable or likely" },
+      { word: "rebuke",      meaning: "to criticize someone sharply" },
+      { word: "relentless",  meaning: "never stopping or giving up" },
+      { word: "revere",      meaning: "to respect and admire deeply" },
+      { word: "scrupulous",  meaning: "very careful and thorough" },
+      { word: "steadfast",   meaning: "firmly loyal and unchanging" },
+      { word: "subtle",      meaning: "so slight it is hard to notice" },
+      { word: "torment",     meaning: "severe suffering or its cause" },
+      { word: "trivial",     meaning: "of very little importance" },
+      { word: "volatile",    meaning: "likely to change suddenly and dangerously" }
+    ]
+  },
+  {
+    name: "Spelling Bee",
+    blurb: "School and regional bee",
+    fallSpeed: 115,
+    spawnEvery: 760,
+    targetChance: 0.3,
+    points: 40,
+    catchesToAdvance: 100,
+    words: [
+      { word: "abdicate",      meaning: "to give up a throne or power" },
+      { word: "audacious",     meaning: "boldly daring" },
+      { word: "belligerent",   meaning: "eager to pick a fight" },
+      { word: "cacophony",     meaning: "a harsh mix of loud sounds" },
+      { word: "camaraderie",   meaning: "friendly trust between people" },
+      { word: "chronicle",     meaning: "a record of events in order" },
+      { word: "clandestine",   meaning: "kept secret on purpose" },
+      { word: "conundrum",     meaning: "a puzzling problem" },
+      { word: "debacle",       meaning: "a complete and messy failure" },
+      { word: "deference",     meaning: "polite respect for someone" },
+      { word: "dexterity",     meaning: "skill with your hands" },
+      { word: "dilapidated",   meaning: "falling apart from age" },
+      { word: "eloquent",      meaning: "speaking clearly and beautifully" },
+      { word: "embellish",     meaning: "to add fancy extra details" },
+      { word: "epitome",       meaning: "a perfect example of something" },
+      { word: "exuberant",     meaning: "full of lively energy" },
+      { word: "facetious",     meaning: "joking when you should be serious" },
+      { word: "gregarious",    meaning: "loving the company of other people" },
+      { word: "harbinger",     meaning: "a sign of what is coming" },
+      { word: "idiosyncrasy",  meaning: "an odd habit that only one person has" },
+      { word: "impetuous",     meaning: "acting without thinking first" },
+      { word: "incorrigible",  meaning: "impossible to correct" },
+      { word: "innocuous",     meaning: "harmless" },
+      { word: "juxtapose",     meaning: "to place two things side by side" },
+      { word: "labyrinth",     meaning: "a maze you could get lost in" },
+      { word: "luminous",      meaning: "glowing with light" },
+      { word: "magnanimous",   meaning: "generous, even toward a rival" },
+      { word: "malleable",     meaning: "easy to bend into a new shape" },
+      { word: "nonchalant",    meaning: "calm and completely unbothered" },
+      { word: "obsequious",    meaning: "trying far too hard to please" },
+      { word: "ostentatious",  meaning: "showing off wealth" },
+      { word: "paradigm",      meaning: "a model or pattern to follow" },
+      { word: "perfunctory",   meaning: "done without care, just to finish" },
+      { word: "plausible",     meaning: "believable enough to be true" },
+      { word: "precocious",    meaning: "advanced for your age" },
+      { word: "reticent",      meaning: "quiet and holding back" },
+      { word: "sagacious",     meaning: "wise and quick to judge well" },
+      { word: "superfluous",   meaning: "more than is needed" },
+      { word: "tenacious",     meaning: "refusing to let go" },
+      { word: "vociferous",    meaning: "loud and forceful in speaking" },
+      { word: "acrimonious",   meaning: "angry and bitter in tone" },
+      { word: "ameliorate",    meaning: "to make a bad situation better" },
+      { word: "anomaly",       meaning: "something different from what is normal" },
+      { word: "antipathy",     meaning: "a deep feeling of dislike" },
+      { word: "auspicious",    meaning: "suggesting future success" },
+      { word: "beguile",       meaning: "to charm or trick someone" },
+      { word: "capitulate",    meaning: "to give up and accept defeat" },
+      { word: "chagrin",       meaning: "embarrassment from failure" },
+      { word: "cognizant",     meaning: "aware and informed about something" },
+      { word: "compunction",   meaning: "a guilty feeling about doing wrong" },
+      { word: "conflagration", meaning: "a large and destructive fire" },
+      { word: "deleterious",   meaning: "causing harm or damage" },
+      { word: "denigrate",     meaning: "to criticize unfairly" },
+      { word: "duplicity",     meaning: "lying to people on both sides" },
+      { word: "effervescent",  meaning: "bubbly and full of life" },
+      { word: "egregious",     meaning: "shockingly bad" },
+      { word: "enervate",      meaning: "to drain someone of energy" },
+      { word: "ephemeral",     meaning: "lasting for a very short time" },
+      { word: "equivocate",    meaning: "to speak vaguely to hide the truth" },
+      { word: "fastidious",    meaning: "very fussy about small details" },
+      { word: "fortuitous",    meaning: "happening by lucky chance" },
+      { word: "gratuitous",    meaning: "given without good reason" },
+      { word: "ignominy",      meaning: "public shame and disgrace" },
+      { word: "impervious",    meaning: "impossible to affect or get through" },
+      { word: "indefatigable", meaning: "never getting tired or giving up" },
+      { word: "insidious",     meaning: "spreading harm in a sneaky way" },
+      { word: "intransigent",  meaning: "stubbornly refusing to compromise" },
+      { word: "irreverent",    meaning: "showing a lack of respect" },
+      { word: "languid",       meaning: "slow and relaxed with little energy" },
+      { word: "litigious",     meaning: "too eager to take people to court" },
+      { word: "mercurial",     meaning: "changing mood very quickly" },
+      { word: "munificent",    meaning: "extremely generous" },
+      { word: "nebulous",      meaning: "unclear and vague" },
+      { word: "nefarious",     meaning: "wicked and criminal" },
+      { word: "obstreperous",  meaning: "noisy and hard to control" },
+      { word: "panacea",       meaning: "a cure for all problems" },
+      { word: "parsimonious",  meaning: "extremely unwilling to spend money" },
+      { word: "pernicious",    meaning: "causing harm in a subtle way" },
+      { word: "pertinacious",  meaning: "holding firmly to an opinion" },
+      { word: "precipitous",   meaning: "dangerously steep or sudden" },
+      { word: "quintessential",meaning: "the most perfect example" },
+      { word: "recondite",     meaning: "not known by many people" },
+      { word: "remunerate",    meaning: "to pay someone for work done" },
+      { word: "reprehensible", meaning: "deserving strong criticism" },
+      { word: "rescind",       meaning: "to officially cancel a law or order" },
+      { word: "sacrosanct",    meaning: "too important to be changed" },
+      { word: "serendipity",   meaning: "finding good things by happy accident" },
+      { word: "sycophant",     meaning: "someone who flatters powerful people" },
+      { word: "trepidation",   meaning: "a feeling of nervous fear" },
+      { word: "truculent",     meaning: "eager to argue or fight" },
+      { word: "ubiquitous",    meaning: "found everywhere" },
+      { word: "unctuous",      meaning: "overly smooth and flattering" },
+      { word: "vehement",      meaning: "showing strong feeling" },
+      { word: "verisimilitude", meaning: "the appearance of being true" },
+      { word: "vindicate",     meaning: "to prove someone was right" },
+      { word: "vitriolic",     meaning: "cruel and bitterly harsh" },
+      { word: "whimsical",     meaning: "playfully odd or unpredictable" },
+      { word: "zealous",       meaning: "showing passionate enthusiasm" },
+      { word: "acquiescence",  meaning: "accepting something without protest" },
+      { word: "bibliophile",   meaning: "a person who loves books" }
+    ]
+  },
+  {
+    name: "Championship",
+    blurb: "National bee finals",
+    fallSpeed: 130,
+    spawnEvery: 700,
+    targetChance: 0.26,
+    points: 60,
+    catchesToAdvance: 999,   // last level, so you stay here
+    words: [
+      { word: "abstemious",       meaning: "eating and drinking very little" },
+      { word: "acquiesce",        meaning: "to agree without protest" },
+      { word: "anachronism",      meaning: "something placed in the wrong time period" },
+      { word: "antediluvian",     meaning: "extremely old fashioned" },
+      { word: "bellicose",        meaning: "eager to start a war" },
+      { word: "bowdlerize",       meaning: "to cut the rude parts out of a book" },
+      { word: "capricious",       meaning: "changing mood without warning" },
+      { word: "circumlocution",   meaning: "talking all around a point" },
+      { word: "concomitant",      meaning: "happening alongside something else" },
+      { word: "defenestration",   meaning: "throwing someone out of a window" },
+      { word: "desultory",        meaning: "jumping about with no plan" },
+      { word: "diaphanous",       meaning: "so thin you can see through it" },
+      { word: "ebullient",        meaning: "bubbling over with excitement" },
+      { word: "equanimity",       meaning: "a calm and even temper" },
+      { word: "esoteric",         meaning: "understood by only a few people" },
+      { word: "flibbertigibbet",  meaning: "a silly, flighty person" },
+      { word: "fulminate",        meaning: "to protest loudly and angrily" },
+      { word: "garrulous",        meaning: "talking far too much" },
+      { word: "hegemony",         meaning: "control by one group over all others" },
+      { word: "ignominious",      meaning: "shameful and humiliating" },
+      { word: "imbroglio",        meaning: "a messy, confusing situation" },
+      { word: "inchoate",         meaning: "just begun and not yet formed" },
+      { word: "ineluctable",      meaning: "impossible to avoid" },
+      { word: "insouciant",       meaning: "cheerfully unconcerned" },
+      { word: "lachrymose",       meaning: "tearful and sad" },
+      { word: "legerdemain",      meaning: "clever sleight of hand" },
+      { word: "maelstrom",        meaning: "a violent whirlpool or uproar" },
+      { word: "mellifluous",      meaning: "sweet and smooth to listen to" },
+      { word: "obfuscate",        meaning: "to make something confusing on purpose" },
+      { word: "paroxysm",         meaning: "a sudden violent outburst" },
+      { word: "pellucid",         meaning: "perfectly clear" },
+      { word: "perspicacious",    meaning: "sharp at noticing things" },
+      { word: "propinquity",      meaning: "nearness in place or time" },
+      { word: "pusillanimous",    meaning: "completely lacking courage" },
+      { word: "quixotic",         meaning: "chasing impossible ideals" },
+      { word: "recalcitrant",     meaning: "stubbornly disobedient" },
+      { word: "sesquipedalian",   meaning: "using very long words" },
+      { word: "soporific",        meaning: "causing sleepiness" },
+      { word: "ubiquitous",       meaning: "seeming to be everywhere at once" },
+      { word: "vicissitude",      meaning: "an unexpected change in life" },
+      { word: "zephyr",           meaning: "a gentle breeze" },
+      { word: "abnegation",       meaning: "giving up something you want" },
+      { word: "acrimony",         meaning: "bitterness and harsh words" },
+      { word: "affidavit",        meaning: "a written promise sworn under oath" },
+      { word: "anathema",         meaning: "something deeply hated" },
+      { word: "apotheosis",       meaning: "the highest point of achievement" },
+      { word: "calumny",          meaning: "a false statement meant to damage" },
+      { word: "chicanery",        meaning: "trickery used to achieve a goal" },
+      { word: "confabulate",      meaning: "to chat or fill gaps with invented stories" },
+      { word: "contumacious",     meaning: "stubbornly refusing to obey" },
+      { word: "corroborate",      meaning: "to confirm with supporting evidence" },
+      { word: "cynosure",         meaning: "a center of attention or admiration" },
+      { word: "denouement",       meaning: "the final outcome of a story" },
+      { word: "dilettante",       meaning: "someone with only surface knowledge" },
+      { word: "effrontery",       meaning: "bold and disrespectful nerve" },
+      { word: "emollient",        meaning: "something that softens or soothes" },
+      { word: "encomium",         meaning: "a speech of high praise" },
+      { word: "epistolary",       meaning: "relating to letters or letter writing" },
+      { word: "excoriate",        meaning: "to criticize very harshly" },
+      { word: "grandiloquent",    meaning: "using fancy language to impress" },
+      { word: "hagiography",      meaning: "a biography that only shows good things" },
+      { word: "hermeneutics",     meaning: "the study of interpreting texts" },
+      { word: "idempotent",       meaning: "producing the same result each time" },
+      { word: "impecunious",      meaning: "having very little money" },
+      { word: "jejune",           meaning: "dull, childish, or lacking nutrition" },
+      { word: "loquacious",       meaning: "very talkative" },
+      { word: "magniloquent",     meaning: "using grand and fancy language" },
+      { word: "mendacious",       meaning: "not telling the truth" },
+      { word: "meretricious",     meaning: "flashy but actually worthless" },
+      { word: "obstreperous",     meaning: "noisy and difficult to control" },
+      { word: "oleaginous",       meaning: "oily or falsely flattering" },
+      { word: "opprobrium",       meaning: "harsh criticism and public disgrace" },
+      { word: "palimpsest",       meaning: "something reused with traces of the old" },
+      { word: "panegyric",        meaning: "a public speech of high praise" },
+      { word: "penurious",        meaning: "extremely poor or stingy" },
+      { word: "peregrination",    meaning: "traveling from place to place" },
+      { word: "phantasmagoria",   meaning: "a shifting scene of strange images" },
+      { word: "plethora",         meaning: "an excessive amount of something" },
+      { word: "prestidigitation", meaning: "magic tricks done with the hands" },
+      { word: "pulchritudinous",  meaning: "physically beautiful" },
+      { word: "querulous",        meaning: "always complaining" },
+      { word: "rapprochement",    meaning: "a renewal of friendly relations" },
+      { word: "schadenfreude",    meaning: "pleasure from someone else's misfortune" },
+      { word: "solipsism",        meaning: "the belief only your own mind is real" },
+      { word: "subterfuge",       meaning: "a trick used to get what you want" },
+      { word: "surreptitious",    meaning: "done secretly so no one notices" },
+      { word: "syzygy",           meaning: "an alignment of three celestial bodies" },
+      { word: "tergiversate",     meaning: "to keep changing sides or opinions" },
+      { word: "tmesis",           meaning: "splitting a word by inserting another" },
+      { word: "truculent",        meaning: "quick to argue and fight" },
+      { word: "verisimilitude",   meaning: "the appearance of being real or true" },
+      { word: "vivisepulture",    meaning: "the act of burying someone alive" },
+      { word: "xeriscape",        meaning: "landscaping that needs very little water" },
+      { word: "zeitgeist",        meaning: "the spirit or mood of a time period" },
+      { word: "abnegate",         meaning: "to deny or renounce something" },
+      { word: "blandishment",     meaning: "flattering words meant to persuade" },
+      { word: "concatenation",    meaning: "a series of things linked together" },
+      { word: "diatribe",         meaning: "a long angry speech of criticism" },
+      { word: "expunge",          meaning: "to erase or destroy completely" },
+      { word: "fungible",         meaning: "replaceable by an identical item" }
+    ]
+  }
+];
+
+/* ==============================================================
+   THE PET COLLECTION
+   Each pet has an id, emoji, display name, and animation style.
+   ============================================================== */
+const PETS = [
+  { id: "cat",       emoji: "🐱", name: "Whiskers",  anim: "anim-bounce" },
+  { id: "dog",       emoji: "🐶", name: "Buddy",     anim: "anim-wobble" },
+  { id: "bunny",     emoji: "🐰", name: "Clover",    anim: "anim-hop" },
+  { id: "frog",      emoji: "🐸", name: "Ribbit",    anim: "anim-hop" },
+  { id: "fox",       emoji: "🦊", name: "Ember",     anim: "anim-sway" },
+  { id: "panda",     emoji: "🐼", name: "Bamboo",    anim: "anim-wobble" },
+  { id: "koala",     emoji: "🐨", name: "Sleepy",    anim: "anim-float" },
+  { id: "owl",       emoji: "🦉", name: "Hoot",      anim: "anim-spin" },
+  { id: "penguin",   emoji: "🐧", name: "Waddles",   anim: "anim-wobble" },
+  { id: "butterfly", emoji: "🦋", name: "Flutter",   anim: "anim-float" },
+  { id: "turtle",    emoji: "🐢", name: "Sheldon",   anim: "anim-pulse" },
+  { id: "octopus",   emoji: "🐙", name: "Inky",      anim: "anim-pulse" },
+  { id: "unicorn",   emoji: "🦄", name: "Sparkle",   anim: "anim-bounce" },
+  { id: "dolphin",   emoji: "🐬", name: "Splash",    anim: "anim-hop" },
+  { id: "bee",       emoji: "🐝", name: "Buzz",      anim: "anim-wiggle" },
+  { id: "parrot",    emoji: "🦜", name: "Polly",     anim: "anim-sway" },
+  { id: "fish",      emoji: "🐠", name: "Nemo",      anim: "anim-float" },
+  { id: "dragon",    emoji: "🐲", name: "Blaze",     anim: "anim-bounce" },
+  { id: "lion",      emoji: "🦁", name: "Roary",     anim: "anim-wobble" },
+  { id: "hamster",   emoji: "🐹", name: "Nibbles",   anim: "anim-wiggle" }
+];
+
+/* ==============================================================
+   THE PET SVG DRAWINGS
+   Keyed by pet id. Each value is the inner SVG markup for
+   viewBox="0 0 64 64". Animation classes (.blink, .el/.er,
+   .wl/.wr, .fl/.fr) are already applied inside.
+   ============================================================== */
+const PET_SVG = {
+  cat: '<polygon points="17,26 20,10 32,23" fill="#ffd158" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round"/><polygon points="47,26 44,10 32,23" fill="#ffd158" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round"/><circle cx="32" cy="38" r="18" fill="#ffd158" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="25" cy="34" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="39" cy="34" rx="3" ry="3.8" fill="#1a1730" class="blink"/><polygon points="32,40 28,45 36,45" fill="#e0708f" stroke="#1a1730" stroke-width="1.4" stroke-linejoin="round"/><path d="M32 45 Q27 51 22 47 M32 45 Q37 51 42 47" fill="none" stroke="#1a1730" stroke-width="1.8" stroke-linecap="round"/>',
+
+  dog: '<ellipse cx="13" cy="33" rx="6" ry="12" fill="#b8834f" stroke="#1a1730" stroke-width="2.2" class="el"/><ellipse cx="51" cy="33" rx="6" ry="12" fill="#b8834f" stroke="#1a1730" stroke-width="2.2" class="er"/><circle cx="32" cy="38" r="18" fill="#d9a06a" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="32" cy="46" rx="10" ry="7" fill="#f0dbc2" stroke="#1a1730" stroke-width="1.4"/><ellipse cx="26" cy="34" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="38" cy="34" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="32" cy="42" rx="3.4" ry="2.6" fill="#1a1730"/>',
+
+  bunny: '<ellipse cx="25" cy="15" rx="5" ry="15" fill="#f9a0cf" stroke="#1a1730" stroke-width="2.2" class="el"/><ellipse cx="39" cy="15" rx="5" ry="15" fill="#f9a0cf" stroke="#1a1730" stroke-width="2.2" class="er"/><circle cx="32" cy="40" r="17" fill="#f9a0cf" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="25" cy="37" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="39" cy="37" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="32" cy="45" rx="3.4" ry="2.6" fill="#d9668a" stroke="#1a1730" stroke-width="1.4"/>',
+
+  frog: '<circle cx="20" cy="22" r="8" fill="#5fdcb0" stroke="#1a1730" stroke-width="2.2"/><circle cx="44" cy="22" r="8" fill="#5fdcb0" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="32" cy="41" rx="20" ry="15" fill="#5fdcb0" stroke="#1a1730" stroke-width="2.2"/><circle cx="20" cy="21" r="4" fill="#ffffff" stroke="#1a1730" stroke-width="1.4"/><circle cx="44" cy="21" r="4" fill="#ffffff" stroke="#1a1730" stroke-width="1.4"/><circle cx="20" cy="21" r="2" fill="#1a1730" class="blink"/><circle cx="44" cy="21" r="2" fill="#1a1730" class="blink"/><path d="M18 46 Q32 56 46 46" fill="none" stroke="#1a1730" stroke-width="2" stroke-linecap="round"/>',
+
+  fox: '<polygon points="16,28 19,10 31,25" fill="#ff7f45" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round" class="el"/><polygon points="48,28 45,10 33,25" fill="#ff7f45" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round" class="er"/><ellipse cx="32" cy="34" rx="19" ry="15" fill="#ff7f45" stroke="#1a1730" stroke-width="2.2"/><polygon points="18,40 46,40 32,58" fill="#ff7f45" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round"/><polygon points="25,45 39,45 32,56" fill="#fff4ea" stroke="#1a1730" stroke-width="1.4" stroke-linejoin="round"/><ellipse cx="25" cy="32" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="39" cy="32" rx="3" ry="3.8" fill="#1a1730" class="blink"/><circle cx="32" cy="53" r="3" fill="#1a1730"/>',
+
+  panda: '<circle cx="18" cy="22" r="8" fill="#1a1730"/><circle cx="46" cy="22" r="8" fill="#1a1730"/><circle cx="32" cy="38" r="18" fill="#f5f2ff" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="25" cy="35" rx="5" ry="6" fill="#1a1730"/><ellipse cx="39" cy="35" rx="5" ry="6" fill="#1a1730"/><circle cx="25" cy="34" r="1.8" fill="#f5f2ff" class="blink"/><circle cx="39" cy="34" r="1.8" fill="#f5f2ff" class="blink"/><ellipse cx="32" cy="44" rx="3.4" ry="2.6" fill="#1a1730"/>',
+
+  koala: '<circle cx="14" cy="26" r="9" fill="#b8b5c9" stroke="#1a1730" stroke-width="2.2" class="el"/><circle cx="50" cy="26" r="9" fill="#b8b5c9" stroke="#1a1730" stroke-width="2.2" class="er"/><circle cx="14" cy="26" r="5" fill="#d9d5e8"/><circle cx="50" cy="26" r="5" fill="#d9d5e8"/><circle cx="32" cy="40" r="17" fill="#b8b5c9" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="32" cy="44" rx="5" ry="7" fill="#4a4560"/><ellipse cx="24" cy="36" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="40" cy="36" rx="3" ry="3.8" fill="#1a1730" class="blink"/>',
+
+  owl: '<polygon points="17,26 20,8 31,24" fill="#a78bfa" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round"/><polygon points="47,26 44,8 33,24" fill="#a78bfa" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round"/><ellipse cx="11" cy="38" rx="6" ry="14" fill="#8768f0" stroke="#1a1730" stroke-width="2.2" class="wl"/><ellipse cx="53" cy="38" rx="6" ry="14" fill="#8768f0" stroke="#1a1730" stroke-width="2.2" class="wr"/><ellipse cx="32" cy="38" rx="18" ry="20" fill="#a78bfa" stroke="#1a1730" stroke-width="2.2"/><circle cx="25" cy="32" r="7.5" fill="#ffffff" stroke="#1a1730" stroke-width="1.6"/><circle cx="39" cy="32" r="7.5" fill="#ffffff" stroke="#1a1730" stroke-width="1.6"/><circle cx="25" cy="32" r="3.2" fill="#1a1730" class="blink"/><circle cx="39" cy="32" r="3.2" fill="#1a1730" class="blink"/><polygon points="32,38 27,47 37,47" fill="#ffd158" stroke="#1a1730" stroke-width="1.4" stroke-linejoin="round"/>',
+
+  penguin: '<ellipse cx="32" cy="37" rx="17" ry="21" fill="#3f3a70" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="32" cy="41" rx="10.5" ry="15" fill="#f5f2ff"/><circle cx="26" cy="27" r="3.6" fill="#f5f2ff"/><circle cx="38" cy="27" r="3.6" fill="#f5f2ff"/><circle cx="26" cy="27" r="1.7" fill="#1a1730" class="blink"/><circle cx="38" cy="27" r="1.7" fill="#1a1730" class="blink"/><polygon points="32,33 26,38 38,38" fill="#ff7f45" stroke="#1a1730" stroke-width="1.4" stroke-linejoin="round"/><ellipse cx="24" cy="58" rx="7" ry="4" fill="#ff7f45" stroke="#1a1730" stroke-width="1.4"/><ellipse cx="40" cy="58" rx="7" ry="4" fill="#ff7f45" stroke="#1a1730" stroke-width="1.4"/>',
+
+  butterfly: '<ellipse cx="18" cy="27" rx="13" ry="10" fill="#ff7f45" stroke="#1a1730" stroke-width="2.2" class="wl"/><ellipse cx="46" cy="27" rx="13" ry="10" fill="#ff7f45" stroke="#1a1730" stroke-width="2.2" class="wr"/><ellipse cx="21" cy="47" rx="10" ry="8" fill="#ffb37a" stroke="#1a1730" stroke-width="2.2" class="wl"/><ellipse cx="43" cy="47" rx="10" ry="8" fill="#ffb37a" stroke="#1a1730" stroke-width="2.2" class="wr"/><circle cx="15" cy="25" r="3" fill="#fff4ea"/><circle cx="49" cy="25" r="3" fill="#fff4ea"/><ellipse cx="32" cy="38" rx="3.4" ry="16" fill="#1a1730"/><path d="M30 23 Q25 13 19 11 M34 23 Q39 13 45 11" fill="none" stroke="#1a1730" stroke-width="1.8" stroke-linecap="round"/>',
+
+  turtle: '<circle cx="32" cy="15" r="7.5" fill="#8fd47f" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="28" cy="13" rx="1.6" ry="2" fill="#1a1730" class="blink"/><ellipse cx="36" cy="13" rx="1.6" ry="2" fill="#1a1730" class="blink"/><ellipse cx="12" cy="50" rx="7" ry="5" fill="#8fd47f" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="52" cy="50" rx="7" ry="5" fill="#8fd47f" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="32" cy="38" rx="22" ry="16" fill="#4f9e4a" stroke="#1a1730" stroke-width="2.2"/><circle cx="24" cy="34" r="4.5" fill="#6fbf68" stroke="#1a1730" stroke-width="1.4"/><circle cx="40" cy="34" r="4.5" fill="#6fbf68" stroke="#1a1730" stroke-width="1.4"/><circle cx="32" cy="44" r="4.5" fill="#6fbf68" stroke="#1a1730" stroke-width="1.4"/>',
+
+  octopus: '<path d="M14 42 Q14 18 32 18 Q50 18 50 42 Z" fill="#d977b0" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round"/><circle cx="25" cy="32" r="4.5" fill="#ffffff" stroke="#1a1730" stroke-width="1.4"/><circle cx="39" cy="32" r="4.5" fill="#ffffff" stroke="#1a1730" stroke-width="1.4"/><circle cx="25" cy="32" r="2.2" fill="#1a1730" class="blink"/><circle cx="39" cy="32" r="2.2" fill="#1a1730" class="blink"/><path d="M17 42 Q12 54 18 60 M25 43 Q21 55 26 61 M32 43 Q32 55 32 61 M39 43 Q43 55 38 61 M47 42 Q52 54 46 60" fill="none" stroke="#d977b0" stroke-width="5" stroke-linecap="round"/>',
+
+  unicorn: '<polygon points="32,6 26,26 38,26" fill="#ffd158" stroke="#1a1730" stroke-width="1.8" stroke-linejoin="round"/><polygon points="16,28 20,14 29,26" fill="#f5f2ff" stroke="#1a1730" stroke-width="2" stroke-linejoin="round"/><circle cx="32" cy="40" r="17" fill="#f5f2ff" stroke="#1a1730" stroke-width="2.2"/><path d="M45 26 Q57 34 52 50 Q46 36 40 30 Z" fill="#f9a0cf" stroke="#1a1730" stroke-width="1.8" stroke-linejoin="round"/><ellipse cx="25" cy="37" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="32" cy="47" rx="7" ry="5" fill="#fdd3e8" stroke="#1a1730" stroke-width="1.4"/><circle cx="29" cy="45" r="1.5" fill="#1a1730"/>',
+
+  dolphin: '<path d="M10 43 Q22 20 49 25 Q60 28 57 38 Q44 53 24 50 Z" fill="#5ab8e8" stroke="#1a1730" stroke-width="2.2" stroke-linejoin="round"/><path d="M24 48 Q40 54 55 40 Q42 52 26 50 Z" fill="#a8dcf5"/><polygon points="33,25 40,9 47,27" fill="#3f9ed0" stroke="#1a1730" stroke-width="2" stroke-linejoin="round"/><polygon points="11,43 3,32 7,49" fill="#3f9ed0" stroke="#1a1730" stroke-width="2" stroke-linejoin="round"/><circle cx="48" cy="33" r="2.6" fill="#1a1730" class="blink"/><path d="M53 40 Q57 43 56 46" fill="none" stroke="#1a1730" stroke-width="1.6" stroke-linecap="round"/>',
+
+  bee: '<ellipse cx="26" cy="17" rx="10" ry="6.5" fill="#ffffff" stroke="#1a1730" stroke-width="1.8" class="fl"/><ellipse cx="44" cy="17" rx="10" ry="6.5" fill="#ffffff" stroke="#1a1730" stroke-width="1.8" class="fr"/><ellipse cx="38" cy="40" rx="17" ry="13.5" fill="#ffd158" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="34" cy="40" rx="3" ry="12" fill="#1a1730"/><ellipse cx="44" cy="40" rx="3" ry="10.5" fill="#1a1730"/><circle cx="16" cy="37" r="8.5" fill="#1a1730"/><circle cx="13" cy="34" r="2.4" fill="#ffffff" class="blink"/><path d="M11 28 Q6 20 3 18" fill="none" stroke="#1a1730" stroke-width="1.8" stroke-linecap="round"/>',
+
+  parrot: '<polygon points="32,52 25,62 41,62" fill="#5fdcb0" stroke="#1a1730" stroke-width="1.8" stroke-linejoin="round"/><ellipse cx="34" cy="40" rx="14" ry="18" fill="#ff6b6b" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="40" cy="42" rx="7" ry="12" fill="#ffd158" stroke="#1a1730" stroke-width="1.6" class="wr"/><circle cx="30" cy="19" r="11" fill="#ff6b6b" stroke="#1a1730" stroke-width="2.2"/><polygon points="20,17 8,22 20,27" fill="#ffd158" stroke="#1a1730" stroke-width="1.6" stroke-linejoin="round"/><circle cx="27" cy="16" r="2.4" fill="#1a1730" class="blink"/>',
+
+  fish: '<polygon points="44,38 62,26 62,50" fill="#3fc0b0" stroke="#1a1730" stroke-width="2" stroke-linejoin="round"/><ellipse cx="27" cy="38" rx="20" ry="14.5" fill="#5fdcb0" stroke="#1a1730" stroke-width="2.2"/><ellipse cx="33" cy="38" rx="5" ry="13.5" fill="#3fc0b0"/><polygon points="19,24 33,21 26,31" fill="#3fc0b0" stroke="#1a1730" stroke-width="1.6" stroke-linejoin="round"/><circle cx="16" cy="34" r="3.6" fill="#ffffff" stroke="#1a1730" stroke-width="1.4"/><circle cx="16" cy="34" r="1.8" fill="#1a1730" class="blink"/><path d="M11 45 Q17 50 24 47" fill="none" stroke="#1a1730" stroke-width="1.6" stroke-linecap="round"/>',
+
+  dragon: '<polygon points="20,26 14,8 28,24" fill="#ffd158" stroke="#1a1730" stroke-width="1.8" stroke-linejoin="round"/><polygon points="38,26 44,8 30,24" fill="#ffd158" stroke="#1a1730" stroke-width="1.8" stroke-linejoin="round"/><ellipse cx="8" cy="40" rx="6" ry="12" fill="#4f9e4a" stroke="#1a1730" stroke-width="2" stroke-linejoin="round" class="wl"/><ellipse cx="28" cy="38" rx="19" ry="16" fill="#6fbf68" stroke="#1a1730" stroke-width="2.2"/><path d="M43 31 Q60 30 60 39 Q60 48 43 47 Z" fill="#8fd47f" stroke="#1a1730" stroke-width="2" stroke-linejoin="round"/><ellipse cx="22" cy="33" rx="3" ry="3.8" fill="#1a1730" class="blink"/><circle cx="55" cy="37" r="1.6" fill="#1a1730"/><path d="M44 45 L36 50 M40 50 L34 45" fill="none" stroke="#fff4ea" stroke-width="1.8" stroke-linecap="round"/>',
+
+  lion: '<circle cx="17" cy="24" r="5.4" fill="#d97f2a" stroke="#1a1730" stroke-width="1.8" class="el"/><circle cx="47" cy="24" r="5.4" fill="#d97f2a" stroke="#1a1730" stroke-width="1.8" class="er"/><circle cx="32" cy="38" r="22" fill="#e08a2f" stroke="#1a1730" stroke-width="2.2"/><circle cx="32" cy="38" r="15" fill="#ffc47a" stroke="#1a1730" stroke-width="1.6"/><ellipse cx="26" cy="35" rx="2.6" ry="3.4" fill="#1a1730" class="blink"/><ellipse cx="38" cy="35" rx="2.6" ry="3.4" fill="#1a1730" class="blink"/><ellipse cx="32" cy="45" rx="8" ry="6" fill="#fff1e6" stroke="#1a1730" stroke-width="1.4"/><ellipse cx="32" cy="41" rx="3.2" ry="2.4" fill="#1a1730"/><path d="M32 45 Q28 50 24 47 M32 45 Q36 50 40 47" fill="none" stroke="#c96f22" stroke-width="1.6" stroke-linecap="round"/>',
+
+  hamster: '<circle cx="20" cy="23" r="5.6" fill="#d9a06a" stroke="#1a1730" stroke-width="1.8" class="el"/><circle cx="44" cy="23" r="5.6" fill="#d9a06a" stroke="#1a1730" stroke-width="1.8" class="er"/><circle cx="32" cy="40" r="19" fill="#f0c89a" stroke="#1a1730" stroke-width="2.2"/><circle cx="15" cy="46" r="7" fill="#f8dcbb" stroke="#1a1730" stroke-width="1.4"/><circle cx="49" cy="46" r="7" fill="#f8dcbb" stroke="#1a1730" stroke-width="1.4"/><ellipse cx="25" cy="36" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="39" cy="36" rx="3" ry="3.8" fill="#1a1730" class="blink"/><ellipse cx="32" cy="43" rx="3.2" ry="2.4" fill="#d9668a" stroke="#1a1730" stroke-width="1.4"/><path d="M32 46 Q28 51 24 48 M32 46 Q36 51 40 48" fill="none" stroke="#c98f5f" stroke-width="1.6" stroke-linecap="round"/>'
+};
+
+/* Renders an SVG pet with bob wrapper and staggered animation delays.
+   sizeClass: "pet-svg--sm", "pet-svg--md", or "pet-svg--lg" */
+function renderPetSvg(petId, sizeClass) {
+  var markup = PET_SVG[petId];
+  if (!markup) return null;
+
+  var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", "0 0 64 64");
+  svg.setAttribute("class", "pet-svg " + (sizeClass || ""));
+
+  var bobDelay = (Math.random() * 2).toFixed(2) + "s";
+  var blinkDelay = (Math.random() * 2).toFixed(2) + "s";
+
+  var g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+  g.setAttribute("class", "bob");
+  g.style.animationDelay = bobDelay;
+  g.innerHTML = markup;
+
+  g.querySelectorAll(".blink").forEach(function (el) {
+    el.style.animationDelay = blinkDelay;
+  });
+
+  svg.appendChild(g);
+  return svg;
+}
+
+/* ==============================================================
+   2. SETTINGS THAT APPLY TO EVERY LEVEL
+   ============================================================== */
+const SETTINGS = {
+  startingLives:  3,    // how many mistakes you get
+  speedUpPerCatch: 4,   // the sky speeds up a little with each catch
+  longWordLength: 11    // words longer than this get smaller type
+};
+
+/* ==============================================================
+   3. GRABBING THE PAGE ELEMENTS
+   ============================================================== */
+const field       = document.getElementById("field");
+const clueText    = document.getElementById("clue-text");
+const scoreNumber = document.getElementById("score-number");
+const levelName   = document.getElementById("level-name");
+const livesBox    = document.getElementById("lives");
+const levelBanner = document.getElementById("levelup");
+const startScreen = document.getElementById("start-screen");
+const overScreen  = document.getElementById("over-screen");
+const finalScore  = document.getElementById("final-score");
+const learnedBox  = document.getElementById("learned");
+const levelPicker = document.getElementById("level-picker");
+const pauseFeedback  = document.getElementById("pause-feedback");
+const pauseWord      = document.getElementById("pause-word");
+const pauseMeaning   = document.getElementById("pause-meaning");
+const reviewPrompt   = document.getElementById("review-prompt");
+const reviewScreen   = document.getElementById("review-screen");
+const reviewWordEl   = document.getElementById("review-word");
+const reviewMeanEl   = document.getElementById("review-meaning");
+const reviewCounter  = document.getElementById("review-counter");
+const reviewCard     = document.getElementById("review-card");
+const petsBtn        = document.getElementById("pets-btn");
+const petsScreen     = document.getElementById("pets-screen");
+const petsGrid       = document.getElementById("pets-grid");
+const petsCountEl    = document.getElementById("pets-count");
+const petPicker      = document.getElementById("pet-picker");
+const petPickerGrid  = document.getElementById("pet-picker-grid");
+
+/* ==============================================================
+   4. GAME STATE
+   Everything the game needs to remember while you play.
+   ============================================================== */
+let score = 0;
+let lives = SETTINGS.startingLives;
+let levelIndex = 0;        // which level you are on, 0 is the first
+let level = LEVELS[0];     // the level itself
+let catchesThisLevel = 0;
+let bag = [];              // shuffled words waiting their turn
+let target = null;         // the word you are hunting for right now
+let falling = [];          // every word currently on screen
+let learned = [];          // words you caught correctly
+let running = false;
+let paused = false;
+let speed = 0;
+let spawnTimer = 0;
+let sinceTargetSpawned = 0;
+let lastFrame = 0;
+let pendingLevel = 0;
+let reviewIndex = 0;
+let reviewWords = [];
+let midGameReview = false;     // true when review is offered during a level-up
+let reviewGoTarget = "start";  // where "Go to game" returns: "start", "over"
+let totalCatches = 0;          // correct catches in this game (for pet awards)
+let ownedPets = loadPets();        // pet ids saved in localStorage
+let extraLives = loadExtraLives(); // bonus lives earned from pets
+
+/* ==============================================================
+   5. STARTING A GAME
+   ============================================================== */
+function startGame(startingLevel) {
+  score = 0;
+  lives = SETTINGS.startingLives;
+  learned = [];
+  totalCatches = 0;
+  running = true;
+
+  goToLevel(startingLevel);
+
+  startScreen.classList.add("hidden");
+  overScreen.classList.add("hidden");
+
+  updateScore();
+  updateLives();
+  nextRound();
+
+  lastFrame = performance.now();
+  requestAnimationFrame(loop);
+}
+
+// Move to a level, load its settings, and shuffle its words.
+function goToLevel(index) {
+  levelIndex = index;
+  level = LEVELS[levelIndex];
+  speed = level.fallSpeed;
+  catchesThisLevel = 0;
+  levelName.textContent = level.name;
+  refillBag();
+}
+
+/* --------------------------------------------------------------
+   THE WORD BAG
+   With a hundred words, picking at random would repeat some words
+   and skip others. Instead we shuffle the whole level into a bag
+   and draw one at a time, like cards. When the bag runs out, we
+   shuffle it again.
+   -------------------------------------------------------------- */
+function refillBag() {
+  bag = level.words.slice();     // a copy, so the real list is safe
+
+  // Fisher-Yates shuffle: walk backwards, swap each with a random
+  // earlier card.
+  for (let i = bag.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const hold = bag[i];
+    bag[i] = bag[j];
+    bag[j] = hold;
+  }
+}
+
+function drawFromBag() {
+  if (bag.length === 0) refillBag();
+  return bag.pop();
+}
+
+// Pick a new word to hunt for and show its meaning.
+function nextRound() {
+  clearField();
+  target = drawFromBag();
+  clueText.textContent = target.meaning;
+  spawnTimer = 0;
+  sinceTargetSpawned = 0;
+}
+
+/* ==============================================================
+   6. MAKING WORDS FALL
+   The wrong words come from the same level, so the harder the
+   level, the more alike the choices look.
+   ============================================================== */
+function spawnWord() {
+  const forceTarget = sinceTargetSpawned >= 3;
+  const isTarget = forceTarget || Math.random() < level.targetChance;
+
+  let entry = target;
+  if (!isTarget) {
+    entry = pickRandom(level.words.filter(w => w.word !== target.word));
+  }
+
+  const element = document.createElement("button");
+  element.className = "word";
+  if (entry.word.length > SETTINGS.longWordLength) {
+    element.classList.add("long");
+  }
+  element.textContent = entry.word;
+  field.appendChild(element);
+
+  const maxX = field.clientWidth - element.offsetWidth;
+  const item = {
+    element: element,
+    word: entry.word,
+    isTarget: isTarget,
+    x: Math.random() * Math.max(maxX, 0),
+    y: -50
+  };
+
+  element.addEventListener("click", () => catchWord(item));
+  falling.push(item);
+
+  sinceTargetSpawned = isTarget ? 0 : sinceTargetSpawned + 1;
+}
+
+/* ==============================================================
+   7. THE GAME LOOP
+   This runs about 60 times a second. It moves every word down a
+   little, and drops in a new word every so often.
+   ============================================================== */
+function loop(now) {
+  if (!running) return;
+
+  let delta = (now - lastFrame) / 1000;
+  if (delta > 0.05) delta = 0.05;   // don't jump if the tab was hidden
+  lastFrame = now;
+
+  if (!paused) {
+    spawnTimer += delta * 1000;
+    if (spawnTimer >= level.spawnEvery) {
+      spawnTimer = 0;
+      spawnWord();
+    }
+
+    for (let i = falling.length - 1; i >= 0; i--) {
+      const item = falling[i];
+      item.y += speed * delta;
+      item.element.style.transform = `translate(${item.x}px, ${item.y}px)`;
+
+      if (item.y > field.clientHeight) {
+        removeWord(i);
+        if (item.isTarget) loseLife();
+      }
+    }
+  }
+
+  requestAnimationFrame(loop);
+}
+
+/* ==============================================================
+   8. CATCHING A WORD
+   ============================================================== */
+function catchWord(item) {
+  if (!running) return;
+
+  const index = falling.indexOf(item);
+  if (index === -1) return;
+  falling.splice(index, 1);
+
+  if (item.isTarget) {
+    item.element.classList.add("caught");
+    score += level.points;
+    speed += SETTINGS.speedUpPerCatch;
+    catchesThisLevel += 1;
+    if (!learned.includes(target.word)) learned.push(target.word);
+    updateScore();
+    spawnConfetti();
+    playCelebrateSound();
+    totalCatches += 1;
+    if (totalCatches % 5 === 0) awardPet();
+
+    // Earned enough catches? Move up, if there is a level above.
+    if (catchesThisLevel >= level.catchesToAdvance && levelIndex < LEVELS.length - 1) {
+      setTimeout(() => levelUp(), 300);
+    } else {
+      setTimeout(nextRound, 300);
+    }
+  } else {
+    item.element.classList.add("wrong");
+    setTimeout(() => item.element.remove(), 300);
+    loseLife();
+  }
+}
+
+/* ==============================================================
+   9. MOVING UP A LEVEL
+   ============================================================== */
+function levelUp() {
+  goToLevel(levelIndex + 1);
+  clearField();
+  clueText.textContent = "";
+
+  levelBanner.textContent = level.name + " words now";
+  levelBanner.classList.remove("show");
+  void levelBanner.offsetWidth;      // restarts the animation
+  levelBanner.classList.add("show");
+
+  // Pause and offer review of the new level's words
+  setTimeout(function () {
+    running = false;
+    pendingLevel = levelIndex;
+    midGameReview = true;
+    reviewPrompt.classList.remove("hidden");
+  }, 1100);
+}
+
+/* ==============================================================
+   10. LIVES AND GAME OVER
+   ============================================================== */
+function loseLife() {
+  lives -= 1;
+  updateLives();
+  playBlooperSound();
+  if (lives <= 0) {
+    endGame();
+  } else {
+    showPauseFeedback();
+  }
+}
+
+let pauseTimer = null;
+
+function showPauseFeedback() {
+  paused = true;
+  pauseWord.textContent = target.word;
+  pauseMeaning.textContent = target.meaning;
+  pauseFeedback.classList.remove("hidden");
+  schedulePauseDismiss();
+}
+
+function schedulePauseDismiss() {
+  clearTimeout(pauseTimer);
+  pauseTimer = setTimeout(tryHidePauseFeedback, 2000);
+}
+
+function tryHidePauseFeedback() {
+  // If speech is still playing, wait for it to finish
+  if (speechSynthesis.speaking) {
+    pauseTimer = setTimeout(tryHidePauseFeedback, 300);
+    return;
+  }
+  pauseFeedback.classList.add("hidden");
+  paused = false;
+  nextRound();
+}
+
+function endGame() {
+  running = false;
+  clearField();
+  finalScore.textContent = "You scored " + score + " points and reached " + level.name + ".";
+
+  if (learned.length > 0) {
+    learnedBox.textContent = "Words you caught: " + learned.join(", ");
+  } else {
+    learnedBox.textContent = "";
+  }
+
+  // Update extra life button
+  const lifeBtn = document.getElementById("use-life-button");
+  lifeBtn.textContent = "Use extra life (" + extraLives + ")";
+  if (extraLives > 0) {
+    lifeBtn.classList.remove("no-lives");
+  } else {
+    lifeBtn.classList.add("no-lives");
+  }
+
+  overScreen.classList.remove("hidden");
+}
+
+/* ==============================================================
+   11. SMALL HELPERS
+   ============================================================== */
+/* ==============================================================
+   SOUND EFFECTS (Web Audio API, no files needed)
+   ============================================================== */
+let audioCtx = null;
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === "suspended") audioCtx.resume();
+  return audioCtx;
+}
+
+function playCelebrateSound() {
+  const ctx = getAudioCtx();
+  const gain = ctx.createGain();
+  gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0.18, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+
+  [523, 659, 784].forEach(function (freq, i) {
+    const osc = ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    osc.start(ctx.currentTime + i * 0.08);
+    osc.stop(ctx.currentTime + 0.5);
+  });
+}
+
+function playBlooperSound() {
+  const ctx = getAudioCtx();
+  const gain = ctx.createGain();
+  gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0.18, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+
+  const osc = ctx.createOscillator();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(300, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.35);
+  osc.connect(gain);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.45);
+}
+
+/* ==============================================================
+   SPEECH (browser speechSynthesis API)
+   ============================================================== */
+function getEnglishVoice() {
+  const voices = speechSynthesis.getVoices();
+  return voices.find(v => v.lang.startsWith("en")) || null;
+}
+
+function speakWordAndMeaning(word, meaning) {
+  speechSynthesis.cancel();
+
+  const wordUtter = new SpeechSynthesisUtterance(word);
+  wordUtter.rate = 0.8;
+  wordUtter.lang = "en-US";
+  const voice = getEnglishVoice();
+  if (voice) wordUtter.voice = voice;
+
+  const meaningUtter = new SpeechSynthesisUtterance(meaning);
+  meaningUtter.rate = 0.85;
+  meaningUtter.lang = "en-US";
+  if (voice) meaningUtter.voice = voice;
+
+  wordUtter.onend = function () {
+    setTimeout(function () {
+      speechSynthesis.speak(meaningUtter);
+    }, 400);
+  };
+
+  speechSynthesis.speak(wordUtter);
+}
+
+document.getElementById("speak-btn").addEventListener("click", function () {
+  speakWordAndMeaning(pauseWord.textContent, pauseMeaning.textContent);
+});
+
+function spawnConfetti() {
+  const colors = ["var(--star)", "var(--coral)", "var(--mint)", "var(--paper)"];
+  for (let i = 0; i < 35; i++) {
+    const piece = document.createElement("div");
+    piece.className = "confetti";
+    piece.style.left = Math.random() * 100 + "%";
+    piece.style.background = colors[i % colors.length];
+    piece.style.setProperty("--fall-dist", (field.clientHeight + 40) + "px");
+    piece.style.setProperty("--spin", (Math.random() * 1080 - 540) + "deg");
+    piece.style.animationDuration = (0.7 + Math.random() * 0.5) + "s";
+    piece.style.animationDelay = (Math.random() * 0.3) + "s";
+    field.appendChild(piece);
+    piece.addEventListener("animationend", () => piece.remove());
+  }
+}
+
+function pickRandom(list) {
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function removeWord(index) {
+  falling[index].element.remove();
+  falling.splice(index, 1);
+}
+
+function clearField() {
+  falling.forEach(item => item.element.remove());
+  falling = [];
+  field.querySelectorAll(".word").forEach(el => el.remove());
+}
+
+function updateScore() {
+  scoreNumber.textContent = score;
+}
+
+function updateLives() {
+  livesBox.innerHTML = "";
+  for (let i = 0; i < SETTINGS.startingLives; i++) {
+    const dot = document.createElement("div");
+    dot.className = i < lives ? "heart" : "heart gone";
+    livesBox.appendChild(dot);
+  }
+}
+
+/* ==============================================================
+   12. BUILDING THE START SCREEN
+   One button per level, made automatically from the list above.
+   Add a sixth level and a sixth button appears on its own.
+   ============================================================== */
+function buildLevelPicker() {
+  levelPicker.innerHTML = "";
+
+  LEVELS.forEach(function (item, index) {
+    const button = document.createElement("button");
+    button.className = "level";
+    button.innerHTML = item.name + " <small>" + item.blurb + "</small>";
+    button.addEventListener("click", () => askReview(index));
+    levelPicker.appendChild(button);
+  });
+}
+
+/* ==============================================================
+   14. REVIEW SECTION
+   ============================================================== */
+function askReview(index) {
+  pendingLevel = index;
+  midGameReview = false;
+  reviewGoTarget = "start";
+  startScreen.classList.add("hidden");
+  reviewPrompt.classList.remove("hidden");
+}
+
+function resumeGame() {
+  running = true;
+  nextRound();
+  lastFrame = performance.now();
+  requestAnimationFrame(loop);
+}
+
+function openReview() {
+  reviewWords = LEVELS[pendingLevel].words;
+  reviewIndex = 0;
+  showReviewCard();
+  reviewPrompt.classList.add("hidden");
+  reviewScreen.classList.remove("hidden");
+}
+
+function showReviewCard() {
+  const entry = reviewWords[reviewIndex];
+  reviewWordEl.textContent = entry.word;
+  reviewMeanEl.textContent = entry.meaning;
+  reviewCounter.textContent = (reviewIndex + 1) + " / " + reviewWords.length;
+}
+
+function reviewNext() {
+  reviewIndex = (reviewIndex + 1) % reviewWords.length;
+  showReviewCard();
+}
+
+function reviewPrev() {
+  reviewIndex = (reviewIndex - 1 + reviewWords.length) % reviewWords.length;
+  showReviewCard();
+}
+
+// Swipe handling on the review card
+let touchStartX = 0;
+let touchStartY = 0;
+
+reviewCard.addEventListener("touchstart", function (e) {
+  touchStartX = e.touches[0].clientX;
+  touchStartY = e.touches[0].clientY;
+}, { passive: true });
+
+reviewCard.addEventListener("touchend", function (e) {
+  const dx = e.changedTouches[0].clientX - touchStartX;
+  const dy = e.changedTouches[0].clientY - touchStartY;
+  if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy)) {
+    if (dx < 0) reviewNext(); else reviewPrev();
+  }
+});
+
+// Mouse drag swipe for desktop
+let mouseDown = false;
+let mouseStartX = 0;
+
+reviewCard.addEventListener("mousedown", function (e) {
+  mouseDown = true;
+  mouseStartX = e.clientX;
+});
+
+document.addEventListener("mouseup", function (e) {
+  if (!mouseDown) return;
+  mouseDown = false;
+  const dx = e.clientX - mouseStartX;
+  if (Math.abs(dx) > 40) {
+    if (dx < 0) reviewNext(); else reviewPrev();
+  }
+});
+
+// Keyboard arrows while review is open
+document.addEventListener("keydown", function (e) {
+  if (reviewScreen.classList.contains("hidden")) return;
+  if (e.key === "ArrowRight") reviewNext();
+  else if (e.key === "ArrowLeft") reviewPrev();
+});
+
+document.getElementById("review-yes").addEventListener("click", openReview);
+
+document.getElementById("review-no").addEventListener("click", function () {
+  reviewPrompt.classList.add("hidden");
+  if (midGameReview) resumeGame(); else startGame(pendingLevel);
+});
+
+document.getElementById("review-home").addEventListener("click", function () {
+  speechSynthesis.cancel();
+  running = false;
+  paused = false;
+  clearField();
+  reviewScreen.classList.add("hidden");
+  startScreen.classList.remove("hidden");
+  buildStartPets();
+});
+
+document.getElementById("review-go").addEventListener("click", function () {
+  speechSynthesis.cancel();
+  reviewScreen.classList.add("hidden");
+  if (reviewGoTarget === "over") {
+    reviewGoTarget = "start";
+    overScreen.classList.remove("hidden");
+  } else if (midGameReview) {
+    resumeGame();
+  } else {
+    startGame(pendingLevel);
+  }
+});
+
+document.getElementById("review-speak-btn").addEventListener("click", function () {
+  speakWordAndMeaning(reviewWordEl.textContent, reviewMeanEl.textContent);
+});
+
+document.getElementById("review-prev").addEventListener("click", reviewPrev);
+document.getElementById("review-next").addEventListener("click", reviewNext);
+
+/* ==============================================================
+   15. PET COLLECTION
+   ============================================================== */
+/* ==============================================================
+   STORAGE (simple localStorage, no accounts)
+   ============================================================== */
+function loadPets() {
+  try {
+    const data = localStorage.getItem("wordcatcher_pets");
+    return data ? JSON.parse(data) : [];
+  } catch (e) { return []; }
+}
+
+function savePets() {
+  try { localStorage.setItem("wordcatcher_pets", JSON.stringify(ownedPets)); }
+  catch (e) { /* storage full or blocked */ }
+}
+
+function loadExtraLives() {
+  try {
+    return parseInt(localStorage.getItem("wordcatcher_extralives")) || 0;
+  } catch (e) { return 0; }
+}
+
+function saveExtraLives() {
+  try { localStorage.setItem("wordcatcher_extralives", String(extraLives)); }
+  catch (e) { /* storage full or blocked */ }
+}
+
+function updatePetsBtn() {
+  petsBtn.textContent = "My Pets (" + ownedPets.length + " of " + PETS.length + ")";
+}
+
+function awardPet() {
+  // Pause and show the picker — all pets are always available
+  paused = true;
+  petPickerGrid.innerHTML = "";
+
+  PETS.forEach(function (pet) {
+    const card = document.createElement("div");
+    card.className = "pick-card";
+
+    const visual = document.createElement("div");
+    visual.className = "pet-emoji";
+    const svg = renderPetSvg(pet.id, "pet-svg--md");
+    if (svg) visual.appendChild(svg);
+
+    const name = document.createElement("div");
+    name.className = "pet-name";
+    name.textContent = pet.name;
+
+    card.appendChild(visual);
+    card.appendChild(name);
+
+    card.addEventListener("click", function () {
+      claimPet(pet, card);
+    });
+
+    petPickerGrid.appendChild(card);
+  });
+
+  petPicker.classList.remove("hidden");
+}
+
+function claimPet(pet, card) {
+  ownedPets.push(pet.id);
+  savePets();
+  updatePetsBtn();
+
+  extraLives += 1;
+  saveExtraLives();
+
+  // Animate the picked card then close
+  card.style.animation = "pet-picked .45s ease-out forwards";
+  card.style.pointerEvents = "none";
+
+  // Disable other cards
+  petPickerGrid.querySelectorAll(".pick-card").forEach(function (c) {
+    c.style.pointerEvents = "none";
+  });
+
+  setTimeout(function () {
+    petPicker.classList.add("hidden");
+    paused = false;
+  }, 500);
+}
+
+function buildPetsGrid() {
+  petsGrid.innerHTML = "";
+  petsCountEl.textContent = ownedPets.length + " pet" + (ownedPets.length !== 1 ? "s" : "") + " collected";
+
+  // Count how many of each pet the player owns
+  const counts = {};
+  ownedPets.forEach(function (id) {
+    counts[id] = (counts[id] || 0) + 1;
+  });
+
+  PETS.forEach(function (pet) {
+    const count = counts[pet.id] || 0;
+    const owned = count > 0;
+    const card = document.createElement("div");
+    card.className = "pet-card" + (owned ? "" : " locked");
+
+    const visual = document.createElement("div");
+    visual.className = "pet-emoji";
+    if (owned) {
+      const svg = renderPetSvg(pet.id, "pet-svg--lg");
+      if (svg) visual.appendChild(svg);
+    } else {
+      visual.textContent = "❓";
+    }
+
+    const name = document.createElement("div");
+    name.className = "pet-name";
+    name.textContent = owned ? pet.name + (count > 1 ? " x" + count : "") : "???";
+
+    card.appendChild(visual);
+    card.appendChild(name);
+    petsGrid.appendChild(card);
+  });
+}
+
+function openPetsScreen() {
+  buildPetsGrid();
+  startScreen.classList.add("hidden");
+  petsScreen.classList.remove("hidden");
+}
+
+petsBtn.addEventListener("click", openPetsScreen);
+
+document.getElementById("pets-back").addEventListener("click", function () {
+  petsScreen.classList.add("hidden");
+  startScreen.classList.remove("hidden");
+  buildStartPets();
+});
+
+/* ==============================================================
+   16. GETTING STARTED
+   ============================================================== */
+// Home button (game-over screen) — back to start screen
+document.getElementById("again-button").addEventListener("click", function () {
+  startScreen.classList.remove("hidden");
+  overScreen.classList.add("hidden");
+  buildStartPets();
+});
+
+// Home button (during gameplay) — stop and go back to start screen
+document.getElementById("home-btn").addEventListener("click", function () {
+  running = false;
+  paused = false;
+  speechSynthesis.cancel();
+  clearField();
+  petPicker.classList.add("hidden");
+  pauseFeedback.classList.add("hidden");
+  startScreen.classList.remove("hidden");
+  buildStartPets();
+});
+
+// Use extra life — spend one and resume the game
+document.getElementById("use-life-button").addEventListener("click", function () {
+  if (extraLives <= 0) return;
+  extraLives -= 1;
+  saveExtraLives();
+  lives = 1;
+  running = true;
+  updateLives();
+  overScreen.classList.add("hidden");
+  nextRound();
+  lastFrame = performance.now();
+  requestAnimationFrame(loop);
+});
+
+// Review words from current level on game-over screen
+document.getElementById("over-review-button").addEventListener("click", function () {
+  overScreen.classList.add("hidden");
+  pendingLevel = levelIndex;
+  midGameReview = false;
+  openReview();
+  reviewGoTarget = "over";
+});
+
+/* ==============================================================
+   17. INIT
+   ============================================================== */
+buildLevelPicker();
+buildStartPets();
+updatePetsBtn();
+levelName.textContent = LEVELS[0].name;
+updateLives();
+
+function buildStartPets() {
+  const left = document.getElementById("start-pets-left");
+  const right = document.getElementById("start-pets-right");
+  left.innerHTML = "";
+  right.innerHTML = "";
+
+  const half = Math.ceil(PETS.length / 2);
+
+  PETS.forEach(function (pet, i) {
+    const svg = renderPetSvg(pet.id, "pet-svg--sm");
+    if (!svg) return;
+    if (i < half) {
+      left.appendChild(svg);
+    } else {
+      right.appendChild(svg);
+    }
+  });
+}
+</script>
+
+</body>
+</html>
