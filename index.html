@@ -4,10 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Catch That Word</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Boogaloo&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  @font-face {
+    font-family: 'Boogaloo';
+    src: url('assets/fonts/Boogaloo-Regular.ttf') format('truetype');
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'Fredoka';
+    src: url('assets/fonts/Fredoka.ttf') format('truetype');
+    font-weight: 300 700;
+    font-display: swap;
+  }
   /* ============================================================
      COLORS AND FONTS
      Change any hex code here and the whole game changes color.
@@ -731,6 +740,52 @@
     .confetti { animation: none; display: none; }
     .bob,.blink,.wl,.wr,.fl,.fr,.el,.er{animation:none}
   }
+
+  /* ============================================================
+     FOOTER
+     ============================================================ */
+  .site-footer {
+    font-size: 12px;
+    color: var(--ink-muted);
+    margin-top: 18px;
+  }
+  .site-footer a {
+    color: var(--ink-muted);
+    text-decoration: underline;
+    cursor: pointer;
+  }
+  .site-footer a:hover { color: var(--ink); }
+
+  /* ============================================================
+     ABOUT & PRIVACY SCREEN
+     ============================================================ */
+  #about-screen {
+    justify-content: flex-start;
+    padding-top: 36px;
+  }
+  #about-screen h1 {
+    font-size: clamp(24px, 4vw, 34px);
+    margin-top: 0;
+  }
+  #about-screen h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--ink);
+    margin: 20px 0 8px;
+  }
+  #about-screen p {
+    font-size: 15px;
+    color: var(--ink-soft);
+    max-width: 42ch;
+    line-height: 1.55;
+    margin: 0 0 10px;
+    text-align: left;
+  }
+  #about-screen .play {
+    margin-top: 22px;
+    background: var(--card);
+    border: 2px solid var(--ink);
+  }
 </style>
 </head>
 <body>
@@ -769,8 +824,26 @@
       <p>A meaning appears at the top. Catch the falling word that matches it. Pick where you want to start.</p>
       <div id="level-picker"></div>
       <button id="pets-btn">My Pets (0)</button>
+      <div class="site-footer">&copy; 2026 A.Lundi &middot; <a id="about-link">About &amp; Privacy</a></div>
     </div>
     <div class="start-pets" id="start-pets-right"></div>
+  </div>
+
+  <div class="screen hidden" id="about-screen">
+    <h1>About &amp; Privacy</h1>
+    <h2>About</h2>
+    <p>Catch That Word is a vocabulary game. A meaning appears at the top and you catch the falling word that matches it.</p>
+    <p>There are 500 words across five levels, from everyday words up to national spelling bee finals, and 20 pets to collect along the way.</p>
+    <p>It was built by A.Lundi and is free to play.</p>
+    <h2>Privacy</h2>
+    <p>This game does not collect any personal information.</p>
+    <p>There are no accounts, no sign-ups, and no email addresses.</p>
+    <p>Your pets, extra lives, and progress are saved in your own browser using localStorage. That data stays on your device and is never sent anywhere.</p>
+    <p>There are no cookies, no analytics, and no advertising.</p>
+    <p>The game makes no requests to any other website.</p>
+    <p>The &ldquo;Speak to me&rdquo; button uses your browser&rsquo;s built-in voice. No recordings are made or stored.</p>
+    <p>Clearing your browser data will erase your saved pets.</p>
+    <button class="play" id="about-back">Back</button>
   </div>
 
   <div class="screen hidden" id="pets-screen">
@@ -2212,6 +2285,17 @@ document.getElementById("pets-back").addEventListener("click", function () {
   petsScreen.classList.add("hidden");
   startScreen.classList.remove("hidden");
   buildStartPets();
+});
+
+// About & Privacy screen
+var aboutScreen = document.getElementById("about-screen");
+document.getElementById("about-link").addEventListener("click", function () {
+  startScreen.classList.add("hidden");
+  aboutScreen.classList.remove("hidden");
+});
+document.getElementById("about-back").addEventListener("click", function () {
+  aboutScreen.classList.add("hidden");
+  startScreen.classList.remove("hidden");
 });
 
 /* ==============================================================
