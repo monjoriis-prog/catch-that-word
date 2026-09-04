@@ -1900,6 +1900,16 @@ function getAudioCtx() {
   return audioCtx;
 }
 
+// iOS requires AudioContext to be created/resumed inside a direct user gesture.
+// Unlock on the very first tap so later game-triggered sounds work.
+function unlockAudio() {
+  getAudioCtx();
+  document.removeEventListener("touchstart", unlockAudio, true);
+  document.removeEventListener("click", unlockAudio, true);
+}
+document.addEventListener("touchstart", unlockAudio, true);
+document.addEventListener("click", unlockAudio, true);
+
 function playCelebrateSound() {
   const ctx = getAudioCtx();
   const gain = ctx.createGain();
