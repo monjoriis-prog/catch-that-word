@@ -1893,83 +1893,81 @@ function endGame() {
 /* ==============================================================
    SOUND EFFECTS (Web Audio API, no files needed)
    ============================================================== */
-let audioCtx = null;
-let audioUnlocked = false;
+/* ==============================================================
+   iOS AUDIO UNLOCK
+   iOS WebKit blocks ALL audio (Web Audio + HTML Audio) until a
+   real user gesture plays something.  A silent <audio> element
+   switches the audio session to "playback" (ignoring the mute
+   switch), and a silent Web Audio buffer unlocks the oscillator
+   path.  We do both, on every tap, until the context is running.
+   ============================================================== */
+var audioCtx = null;
+
+// Tiny silent WAV, base64 — 44 bytes header + 1 sample of silence.
+var silentWav = "data:audio/wav;base64,UklGRiYAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQIAAAAAAA==";
+var silentAudio = new Audio(silentWav);
 
 function getAudioCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   return audioCtx;
 }
 
-// iOS WebKit will not let Web Audio produce sound unless an AudioContext is
-// created, resumed, AND a buffer source is started — all inside a user gesture
-// (touchend or click).  We keep trying on every gesture until the context
-// reaches the "running" state, then stop listening.
 function unlockAudio() {
+  // 1. Play a silent HTML <audio> — sets iOS audio session to "playback".
+  silentAudio.play().catch(function () {});
+
+  // 2. Create (or resume) Web Audio context and play a silent buffer.
   var ctx = getAudioCtx();
   if (ctx.state === "suspended") ctx.resume();
-
-  // Play a 1-sample silent buffer — required by iOS to truly unlock output.
   var buf = ctx.createBuffer(1, 1, ctx.sampleRate);
   var src = ctx.createBufferSource();
   src.buffer = buf;
   src.connect(ctx.destination);
   src.start(0);
 
-  // Only stop listening once the context is actually running.
   if (ctx.state === "running") {
-    audioUnlocked = true;
     document.removeEventListener("touchend", unlockAudio, true);
     document.removeEventListener("click", unlockAudio, true);
   }
 }
-// touchend is the most reliable gesture phase on iOS; click is the fallback
-// (also covers desktop).  We intentionally omit touchstart — iOS often
-// rejects it as "not a completed gesture".
 document.addEventListener("touchend", unlockAudio, true);
 document.addEventListener("click", unlockAudio, true);
 
-function playSoundSafe(fn) {
+function playCelebrateSound() {
   var ctx = getAudioCtx();
   if (ctx.state === "suspended") ctx.resume();
-  // If still suspended (no gesture yet), skip — no error, just silence.
   if (ctx.state !== "running") return;
-  fn(ctx);
-}
+  var gain = ctx.createGain();
+  gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0.18, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
 
-function playCelebrateSound() {
-  playSoundSafe(function (ctx) {
-    var gain = ctx.createGain();
-    gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
-
-    [523, 659, 784].forEach(function (freq, i) {
-      var osc = ctx.createOscillator();
-      osc.type = "triangle";
-      osc.frequency.value = freq;
-      osc.connect(gain);
-      osc.start(ctx.currentTime + i * 0.08);
-      osc.stop(ctx.currentTime + 0.5);
-    });
+  [523, 659, 784].forEach(function (freq, i) {
+    var osc = ctx.createOscillator();
+    osc.type = "triangle";
+    osc.frequency.value = freq;
+    osc.connect(gain);
+    osc.start(ctx.currentTime + i * 0.08);
+    osc.stop(ctx.currentTime + 0.5);
   });
 }
 
 function playBlooperSound() {
-  playSoundSafe(function (ctx) {
-    var gain = ctx.createGain();
-    gain.connect(ctx.destination);
-    gain.gain.setValueAtTime(0.18, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+  var ctx = getAudioCtx();
+  if (ctx.state === "suspended") ctx.resume();
+  if (ctx.state !== "running") return;
+  var gain = ctx.createGain();
+  gain.connect(ctx.destination);
+  gain.gain.setValueAtTime(0.18, ctx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
 
-    var osc = ctx.createOscillator();
-    osc.type = "square";
-    osc.frequency.setValueAtTime(300, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.35);
-    osc.connect(gain);
-    osc.start(ctx.currentTime);
-    osc.stop(ctx.currentTime + 0.45);
-  });
+  var osc = ctx.createOscillator();
+  osc.type = "square";
+  osc.frequency.setValueAtTime(300, ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(120, ctx.currentTime + 0.35);
+  osc.connect(gain);
+  osc.start(ctx.currentTime);
+  osc.stop(ctx.currentTime + 0.45);
 }
 
 /* ==============================================================
